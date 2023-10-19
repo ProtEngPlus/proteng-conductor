@@ -3,7 +3,7 @@ name: Build-Test (dev)
 on:
   push:
     branches:
-      - features/ci
+      - feature/ci
       - dev
   pull_request:
     branches:

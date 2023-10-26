@@ -23,6 +23,10 @@ func main() {
 
 	// serve gin server
 	r := gin.Default()
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "ok"})
+	})
+
 	api.RegisterRoutes(r, jobApi)
 	httpPort := os.Getenv("HTTP_PORT")
 	err := r.Run(":" + httpPort)

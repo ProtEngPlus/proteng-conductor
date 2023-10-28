@@ -1,15 +1,17 @@
 package main
 
 import (
-	"os"
+
 	// "context"
 	// "net/http"
 	// "os/signal"
 	// "syscall"
 
-	"proteng-conductor/api"
-	"proteng-conductor/api/job"
+	"os"
+	"proteng-conductor/api/routes"
 	"proteng-conductor/config"
+	"proteng-conductor/database"
+	"proteng-conductor/repositories"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -18,22 +20,38 @@ import (
 func main() {
 	config.AutomaticLoadEnv()
 
-	// dependency injection
-	jobApi := &job.JobApi{}
+	router := gin.Default()
 
-	// serve gin server
-	r := gin.Default()
-	r.GET("/health", func(c *gin.Context) {
+	// database
+	err := database.ConnectToDB()
+	if err != nil {
+		logrus.Fatalf("Failed to connect to database: %v", err)
+	}
+	jobRepository := repositories.NewJobRepository()
+
+	// rabbitmq consumer
+	// rabbitConsumer := rabbitmq.RabbitConsumer()
+	// amqpURL := fmt.Sprintf("amqp://%s:%s@%s:%s/", os.Getenv("RABBITMQ_USER"), os.Getenv("RABBITMQ_PASSWORD"), os.Getenv("RABBITMQ_HOST"), os.Getenv("RABBITMQ_PORT"))
+	// go func() {
+	// 	err := rabbitConsumer.RunConsumer(amqpURL, "test")
+	// 	if err != nil {
+	// 		logrus.Fatalf("Error in RabbitMQ Consumer: %v", err)
+	// 	}
+	// }()
+
+	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "ok"})
 	})
 
-	api.RegisterRoutes(r, jobApi)
+	// routes
+	routes.JobRoute(router, jobRepository)
+
+	// start server
 	httpPort := os.Getenv("HTTP_PORT")
-	err := r.Run(":" + httpPort)
+	err = router.Run(":" + httpPort)
 	if err != nil {
 		logrus.Fatalf("Failed to start server: %v", err)
 	}
-
 }
 
 // func gracefulShutdown(server *http.Server) {

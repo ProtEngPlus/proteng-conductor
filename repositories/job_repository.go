@@ -1,0 +1,128 @@
+package repositories
+
+import (
+	"context"
+	"proteng-conductor/database"
+	"time"
+
+	"proteng-conductor/models"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+)
+
+type JobRepository interface {
+	Create(job *models.Job) error
+	FindById(id string) (*models.Job, error)
+	Update(id string, job *models.Job) error
+	Delete(id string) error
+	GetAll() ([]*models.Job, error)
+}
+
+type jobRepository struct {
+	collection *mongo.Collection
+}
+
+func NewJobRepository() JobRepository {
+	return &jobRepository{collection: database.GetCollection("jobs")}
+}
+
+func (jr *jobRepository) GetAll() ([]*models.Job, error) {
+	var jobs []*models.Job
+
+	cursor, err := jr.collection.Find(context.Background(), bson.M{})
+	if err != nil {
+		return nil, err
+	}
+
+	defer cursor.Close(context.Background())
+
+	for cursor.Next(context.Background()) {
+		var job models.Job
+		if err := cursor.Decode(&job); err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, &job)
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	return jobs, nil
+}
+
+func (jr *jobRepository) FindById(id string) (*models.Job, error) {
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+
+	filter := bson.M{"_id": objectId}
+
+	var job models.Job
+	err = jr.collection.FindOne(context.Background(), filter).Decode(&job)
+	if err != nil {
+		return nil, err
+	}
+
+	return &job, nil
+}
+
+func (jr *jobRepository) Create(job *models.Job) error {
+	job.Id = primitive.NewObjectID()
+	job.CreatedAt = time.Now()
+
+	_, err := jr.collection.InsertOne(context.Background(), job)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (jr *jobRepository) Update(id string, job *models.Job) error {
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+	filter := bson.M{"_id": objectId}
+
+	update := bson.M{
+		"$set": bson.M{
+			"state":         job.State,
+			"current_stage": job.CurrentStage,
+			"lab_result":    job.LabResult,
+			"options":       job.Options,
+			"artifact":      job.Artifacts,
+			"stages":        job.Stages,
+			"input_protein": job.InputProtein,
+			"ref_job_id":    job.RefJobId,
+			"complete_at":   job.CompleteAt,
+		},
+	}
+
+	_, err = jr.collection.UpdateOne(context.Background(), filter, update)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (jr *jobRepository) Delete(id string) error {
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+
+	filter := bson.M{"_id": objectId}
+
+	_, err = jr.collection.DeleteOne(context.Background(), filter)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

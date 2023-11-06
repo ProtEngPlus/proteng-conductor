@@ -7,10 +7,13 @@ import (
 	// "os/signal"
 	// "syscall"
 
+	"fmt"
 	"os"
 	"proteng-conductor/api/routes"
 	"proteng-conductor/config"
 	"proteng-conductor/database"
+	"proteng-conductor/internal/conductor"
+	"proteng-conductor/internal/rabbitmq"
 	"proteng-conductor/repositories"
 
 	"github.com/gin-gonic/gin"
@@ -29,15 +32,16 @@ func main() {
 	}
 	jobRepository := repositories.NewJobRepository()
 
-	// rabbitmq consumer
-	// rabbitConsumer := rabbitmq.RabbitConsumer()
-	// amqpURL := fmt.Sprintf("amqp://%s:%s@%s:%s/", os.Getenv("RABBITMQ_USER"), os.Getenv("RABBITMQ_PASSWORD"), os.Getenv("RABBITMQ_HOST"), os.Getenv("RABBITMQ_PORT"))
-	// go func() {
-	// 	err := rabbitConsumer.RunConsumer(amqpURL, "test")
-	// 	if err != nil {
-	// 		logrus.Fatalf("Error in RabbitMQ Consumer: %v", err)
-	// 	}
-	// }()
+	// conductor
+	conductor := conductor.NewConductor(jobRepository)
+	rabbitConsumer := rabbitmq.NewConsumer(*conductor)
+	amqpURL := fmt.Sprintf("amqp://%s:%s@%s:%s/", os.Getenv("RABBITMQ_USER"), os.Getenv("RABBITMQ_PASSWORD"), os.Getenv("RABBITMQ_HOST"), os.Getenv("RABBITMQ_PORT"))
+	go func() {
+		err := rabbitConsumer.RunConsumer(amqpURL, os.Getenv("JOB_QUEUE"))
+		if err != nil {
+			logrus.Fatalf("Error in RabbitMQ Consumer: %v", err)
+		}
+	}()
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "ok"})

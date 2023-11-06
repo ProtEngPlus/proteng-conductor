@@ -61,14 +61,18 @@ func (jc *JobController) CreateJob(c *gin.Context) {
 // UpdateJob updates an existing job
 func (jc *JobController) UpdateJob(c *gin.Context) {
 	id := c.Param("id")
-	var job models.Job
-	err := c.BindJSON(&job)
+	job, err := jc.jobRepository.FindById(id)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	err = c.BindJSON(&job)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	err = jc.jobRepository.Update(id, &job)
+	err = jc.jobRepository.Update(id, job)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return

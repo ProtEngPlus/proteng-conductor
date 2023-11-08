@@ -27,7 +27,7 @@ jobs:
 
       - name: Get short commit SHA
         run: |
-          export SHORT_SHA=$(git rev-parse --short ${{ github.sha }})
+          export SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-8)
           echo "SHORT_SHA=${SHORT_SHA}"" >> ${GITHUB_ENV}
           
       - name: Test Build Image

@@ -27,8 +27,8 @@ jobs:
 
       - name: Get short commit SHA
         run: |
-          echo $(git rev-parse --short ${{ github.sha }}) >>${GITHUB_ENV}
-          echo $(git rev-parse --short ${{ github.sha }})
+          export SHORT_SHA=$(git rev-parse --short ${{ github.sha }})
+          echo "SHORT_SHA=$SHORT_SHA" >> ${GITHUB_ENV}
           
       # - name: Test Build Image
       #   uses: docker/build-push-action@v4

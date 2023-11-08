@@ -28,16 +28,15 @@ jobs:
       - name: Get short commit SHA
         run: |
           export SHORT_SHA=$(git rev-parse --short ${{ github.sha }})
-          echo "SHORT_SHA=$SHORT_SHA" >> ${GITHUB_ENV}
-          echo ${{ env.SHORT_SHA }}
+          echo "SHORT_SHA=${SHORT_SHA}"" >> ${GITHUB_ENV}
           
-      # - name: Test Build Image
-      #   uses: docker/build-push-action@v4
-      #   with:
-      #     context: .
-      #     file: Dockerfile
-      #     push: false
-      #     tags: proteng-conductor:development
-      #     cache-from: type=gha
-      #     cache-to: type=gha,mode=max
+      - name: Test Build Image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: proteng-conductor:${{ env.SHORT_SHA }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
   

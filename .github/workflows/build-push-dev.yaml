@@ -28,6 +28,11 @@ jobs:
           registry: ${{ secrets.IMAGE_REPO }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_TOKEN }}
+      
+      - name: Get short commit SHA
+        run: |
+          export SHORT_SHA=$(git rev-parse --short ${{ github.sha }})
+          echo "SHORT_SHA=${SHORT_SHA}"" >> ${GITHUB_ENV}
           
       - name: Build and push
         uses: docker/build-push-action@v4

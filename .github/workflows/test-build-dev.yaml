@@ -28,15 +28,15 @@ jobs:
       - name: Get short commit SHA
         run: |
           echo ::set-output name=sha_short::$(echo ${GITHUB_SHA}) | cut -c1-8 
-          echo sha_short
+          echo "$sha_short"
           
-      - name: Test Build Image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: Dockerfile
-          push: false
-          tags: proteng-conductor:development
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # - name: Test Build Image
+      #   uses: docker/build-push-action@v4
+      #   with:
+      #     context: .
+      #     file: Dockerfile
+      #     push: false
+      #     tags: proteng-conductor:development
+      #     cache-from: type=gha
+      #     cache-to: type=gha,mode=max
   

@@ -31,8 +31,8 @@ jobs:
       
       - name: Get short commit SHA
         run: |
-          export SHORT_SHA=$(git rev-parse --short ${{ github.sha }})
-          echo "SHORT_SHA=${SHORT_SHA}"" >> ${GITHUB_ENV}
+          export SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-8)
+          echo "SHORT_SHA=${SHORT_SHA}" >> ${GITHUB_ENV}
           
       - name: Build and push
         uses: docker/build-push-action@v4
@@ -40,7 +40,7 @@ jobs:
           context: .
           file: Dockerfile
           push: true
-          tags: ${{ secrets.IMAGE_REPO }}/${{ secrets.REGISTRY_USERNAME }}/proteng-conductor:development
+          tags: ${{ secrets.IMAGE_REPO }}/${{ secrets.REGISTRY_USERNAME }}/proteng-conductor:${{ env.SHORT_SHA }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

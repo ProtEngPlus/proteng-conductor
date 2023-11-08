@@ -24,6 +24,11 @@ jobs:
         
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Get short commit SHA
+        run: |
+          echo ::set-output name=sha_short::$(echo ${GITHUB_SHA}) | cut -c1-8 
+          echo sha_short
           
       - name: Test Build Image
         uses: docker/build-push-action@v4

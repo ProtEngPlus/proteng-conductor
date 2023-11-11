@@ -1,0 +1,15 @@
+name: Dummy Workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - name: echo branch name
+              run: echo ${{ github.ref }}
+            - name: echo commit hash
+              run: echo ${{ github.sha }}
+            - name: echo commit message
+              run: echo ${{ github.event.workflow_run.head_commit.message }}

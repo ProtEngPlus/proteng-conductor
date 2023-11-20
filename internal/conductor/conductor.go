@@ -21,7 +21,7 @@ func NewConductor(jobRepository repositories.JobRepository) *Conductor {
 
 type Data struct {
 	JobID    string `json:"job_id"`
-	Stage    string `json:"stage_name"`
+	StageID  int    `json:"stage_id"`
 	Status   string `json:"status"`
 	Artifact string `json:"artifact"`
 	Error    string `json:"error"`
@@ -51,15 +51,18 @@ func (con *Conductor) Orchestrate(m string) {
 	reqBody, err := json.Marshal(map[string]interface{}{
 		"job_id":   job.Id.Hex(),
 		"input":    job.InputProtein,
-		"config":   job.Options[job.CurrentStage],
+		"config":   job.Options[job.Meta[job.StageId]],
 		"artifact": job.Artifacts,
+		"meta":     job.Meta,
 	})
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
 
-	req, err := http.NewRequest("POST", os.Getenv(job.CurrentStage+"_URL"), bytes.NewBuffer(reqBody))
+	steps := []string{"SEQUENCER", "EVOTUNE", "FIT_TOP", "MUTATION"}
+
+	req, err := http.NewRequest("POST", os.Getenv(steps[job.StageId]+"_URL"), bytes.NewBuffer(reqBody))
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -81,12 +84,12 @@ func (con *Conductor) updateJobData(data Data) *models.Job {
 		return nil
 	}
 
-	if data.Stage != job.CurrentStage {
+	if data.StageID != job.StageId {
 		fmt.Println("Error: stage mismatch")
 		return nil
 	}
 
-	if data.Status == "FAIL" {
+	if data.Status == "FAILED" {
 		job.State = "FAILED"
 		fmt.Println("Job failed:", data.Error)
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
@@ -96,7 +99,7 @@ func (con *Conductor) updateJobData(data Data) *models.Job {
 		return nil
 	}
 
-	state, stage := getNextStage(*job, data)
+	state, stage_id := getNextStage(*job, data)
 	job.State = state
 
 	if state == "FAILED" {
@@ -111,8 +114,10 @@ func (con *Conductor) updateJobData(data Data) *models.Job {
 	if job.Artifacts == nil {
 		job.Artifacts = make(map[string]interface{})
 	}
-	job.Artifacts[job.CurrentStage] = data.Artifact
-	job.CurrentStage = stage
+	if job.StageId < 3 {
+		job.Artifacts[job.Meta[job.StageId]] = data.Artifact
+	}
+	job.StageId = stage_id
 	if err := con.jobRepository.Update(data.JobID, job); err != nil {
 		fmt.Println("Failed to update job:", err)
 		return nil
@@ -121,18 +126,33 @@ func (con *Conductor) updateJobData(data Data) *models.Job {
 	return job
 }
 
-func getNextStage(job models.Job, data Data) (state string, stage string) {
-	stages := job.Stages
-	for i, stage := range stages {
-		if stage == data.Stage {
-			if i == len(stages)-1 {
-				return "COMPLETED", stage
-			}
-			if stage == "EVOTUNE" && job.LabResult == nil {
-				return "PENDING", stages[i+1]
-			}
-			return "ONGOING", stages[i+1]
+func getNextStage(job models.Job, data Data) (state string, stage_id int) {
+	// stages := job.Stages
+	// for i, stage := range stages {
+	// 	if stage == data.Stage {
+	// 		if i == len(stages)-1 {
+	// 			return "COMPLETED", stage
+	// 		}
+	// 		if stage == "EVOTUNE" && job.LabResult == nil {
+	// 			return "PENDING", stages[i+1]
+	// 		}
+	// 		return "ONGOING", stages[i+1]
+	// 	}
+	// }
+	// return "FAILED", data.Stage
+	switch data.StageID {
+	case 0:
+		return "ONGOING", 1
+	case 1:
+		if job.LabResult == nil {
+			return "PENDING", 2
 		}
+		return "ONGOING", 2
+	case 2:
+		return "ONGOING", 3
+	case 3:
+		return "COMPLETED", 3
+	default:
+		return "FAILED", data.StageID
 	}
-	return "FAILED", data.Stage
 }

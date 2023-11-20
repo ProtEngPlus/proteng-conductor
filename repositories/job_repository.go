@@ -92,11 +92,11 @@ func (jr *jobRepository) Update(id string, job *models.Job) error {
 	update := bson.M{
 		"$set": bson.M{
 			"state":         job.State,
-			"current_stage": job.CurrentStage,
+			"stage_id":      job.StageId,
 			"lab_result":    job.LabResult,
 			"options":       job.Options,
 			"artifact":      job.Artifacts,
-			"stages":        job.Stages,
+			"meta":          job.Meta,
 			"input_protein": job.InputProtein,
 			"ref_job_id":    job.RefJobId,
 			"complete_at":   job.CompleteAt,

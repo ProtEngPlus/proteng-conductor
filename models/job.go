@@ -9,12 +9,12 @@ import (
 type Job struct {
 	Id           primitive.ObjectID     `bson:"_id" json:"id"`
 	State        string                 `bson:"state" json:"state"`
-	CurrentStage string                 `bson:"current_stage" json:"current_stage"`
+	StageId      int                    `bson:"stage_id" json:"stage_id"`
 	UserId       string                 `bson:"user_id" json:"user_id"`
 	LabResult    map[string]interface{} `bson:"lab_result" json:"lab_result"`
 	Options      map[string]interface{} `bson:"options" json:"options"`
 	Artifacts    map[string]interface{} `bson:"artifact" json:"artifact"`
-	Stages       []string               `bson:"stages" json:"stages"`
+	Meta         []string               `bson:"meta" json:"meta"`
 	InputProtein string                 `bson:"input_protein" json:"input_protein"`
 	RefJobId     string                 `bson:"ref_job_id" json:"ref_job_id"`
 	CreatedAt    time.Time              `bson:"created_at" json:"created_at"`

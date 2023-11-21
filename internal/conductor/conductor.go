@@ -48,13 +48,18 @@ func (con *Conductor) Orchestrate(m string) {
 	}
 
 	// Get next task
-	reqBody, err := json.Marshal(map[string]interface{}{
+	reqBodyMap := map[string]interface{}{
 		"job_id":   job.Id.Hex(),
 		"input":    job.InputProtein,
 		"config":   job.Options[job.Meta[job.StageId]],
 		"artifact": job.Artifacts,
 		"meta":     job.Meta,
-	})
+	}
+	if job.StageId == 2 {
+		reqBodyMap["lab_result"] = job.LabResult
+	}
+	reqBody, err := json.Marshal(reqBodyMap)
+
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -144,7 +149,7 @@ func getNextStage(job models.Job, data Data) (state string, stage_id int) {
 	case 0:
 		return "ONGOING", 1
 	case 1:
-		if job.LabResult == nil {
+		if job.LabResult.Total == 0 {
 			return "PENDING", 2
 		}
 		return "ONGOING", 2

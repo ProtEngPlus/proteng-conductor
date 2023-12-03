@@ -48,7 +48,7 @@ func main() {
 	})
 
 	// routes
-	routes.JobRoute(router, jobRepository)
+	routes.JobRoute(router, jobRepository, conductor)
 
 	// start server
 	httpPort := os.Getenv("HTTP_PORT")

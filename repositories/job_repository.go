@@ -72,6 +72,7 @@ func (jr *jobRepository) FindById(id string) (*models.Job, error) {
 
 func (jr *jobRepository) Create(job *models.Job) error {
 	job.Id = primitive.NewObjectID()
+	job.State = "CREATED"
 	job.CreatedAt = time.Now()
 
 	_, err := jr.collection.InsertOne(context.Background(), job)

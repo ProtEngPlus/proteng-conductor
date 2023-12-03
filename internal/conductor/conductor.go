@@ -47,6 +47,34 @@ func (con *Conductor) Orchestrate(m string) {
 		return
 	}
 
+	// Orchestrate next task
+	err := con.OrchestrateJob(job)
+	if err != nil {
+		fmt.Println("Error:", err)
+	}
+}
+
+// RunJob runs/retries a job
+func (con *Conductor) RunJob(job *models.Job) error {
+	if job.State == "ONGOING" {
+		return fmt.Errorf("error: job is already ongoing")
+	}
+	if job.State == "COMPLETED" {
+		return fmt.Errorf("error: job is already completed")
+	}
+	if job.StageId == 2 && job.LabResult.Total == 0 {
+		return fmt.Errorf("error: lab result is missing")
+	}
+	job.State = "ONGOING"
+	if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
+		fmt.Println("Failed to update job:", err)
+		return err
+	}
+	return con.OrchestrateJob(job)
+}
+
+// OrchestrateJob sends a request to the next task
+func (con *Conductor) OrchestrateJob(job *models.Job) error {
 	// Get next task
 	reqBodyMap := map[string]interface{}{
 		"job_id":   job.Id.Hex(),
@@ -61,25 +89,34 @@ func (con *Conductor) Orchestrate(m string) {
 	reqBody, err := json.Marshal(reqBodyMap)
 
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		return err
 	}
 
 	steps := []string{"SEQUENCER", "EVOTUNE", "FIT_TOP", "MUTATION"}
 
 	req, err := http.NewRequest("POST", os.Getenv(steps[job.StageId]+"_URL"), bytes.NewBuffer(reqBody))
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		job.State = "FAILED"
+		if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
+			return err
+		}
+		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		job.State = "FAILED"
+		if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
+			return err
+		}
+		return fmt.Errorf("error: %s", resp.Status)
+	}
+	return nil
 }
 
 func (con *Conductor) updateJobData(data Data) *models.Job {

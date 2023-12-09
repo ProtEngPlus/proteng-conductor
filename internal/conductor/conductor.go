@@ -20,11 +20,11 @@ func NewConductor(jobRepository repositories.JobRepository) *Conductor {
 }
 
 type Data struct {
-	JobID    string `json:"job_id"`
-	StageID  int    `json:"stage_id"`
-	Status   string `json:"status"`
-	Artifact string `json:"artifact"`
-	Error    string `json:"error"`
+	JobID    string            `json:"job_id"`
+	StageID  int               `json:"stage_id"`
+	Status   string            `json:"status"`
+	Artifact map[string]string `json:"artifact"`
+	Error    string            `json:"error"`
 }
 
 type Payload struct {

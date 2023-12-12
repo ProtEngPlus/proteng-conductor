@@ -12,6 +12,12 @@ type LabResult struct {
 	Scores    []string `bson:"scores" json:"scores"`
 }
 
+type Artifact struct {
+	BucketName string `bson:"bucket_name" json:"bucket_name"`
+	Path       string `bson:"path" json:"path"`
+	Url        string `bson:"url" json:"url"`
+}
+
 type Job struct {
 	Id           primitive.ObjectID     `bson:"_id" json:"id"`
 	State        string                 `bson:"state" json:"state"`
@@ -19,7 +25,7 @@ type Job struct {
 	UserId       string                 `bson:"user_id" json:"user_id"`
 	LabResult    LabResult              `bson:"lab_result" json:"lab_result"`
 	Options      map[string]interface{} `bson:"options" json:"options"`
-	Artifacts    map[string]interface{} `bson:"artifact" json:"artifact"`
+	Artifacts    map[string]Artifact    `bson:"artifact" json:"artifact"`
 	Meta         []string               `bson:"meta" json:"meta"`
 	InputProtein string                 `bson:"input_protein" json:"input_protein"`
 	RefJobId     string                 `bson:"ref_job_id" json:"ref_job_id"`

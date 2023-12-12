@@ -117,7 +117,7 @@ func (con *Conductor) updateJobData(data Data) *models.Job {
 	}
 
 	if job.Artifacts == nil {
-		job.Artifacts = make(map[string]interface{})
+		job.Artifacts = make(map[string]models.Artifact)
 	}
 	if job.StageId < 3 {
 		job.Artifacts[job.Meta[job.StageId]] = data.Artifact

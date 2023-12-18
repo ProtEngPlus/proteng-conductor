@@ -9,12 +9,12 @@ import (
 
 	"fmt"
 	"os"
-	"proteng-conductor/api/routes"
+	"proteng-conductor/apis/routes"
 	"proteng-conductor/config"
 	"proteng-conductor/database"
-	"proteng-conductor/internal/conductor"
-	"proteng-conductor/internal/rabbitmq"
 	"proteng-conductor/repositories"
+	"proteng-conductor/services/conductor"
+	"proteng-conductor/services/rabbitmq"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"

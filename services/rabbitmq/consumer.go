@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"proteng-conductor/internal/conductor"
+	"proteng-conductor/services/conductor"
 	"syscall"
 	"time"
 

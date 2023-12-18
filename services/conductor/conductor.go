@@ -1,11 +1,8 @@
 package conductor
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"os"
 
 	"proteng-conductor/models"
 	"proteng-conductor/repositories"
@@ -17,20 +14,6 @@ type Conductor struct {
 
 func NewConductor(jobRepository repositories.JobRepository) *Conductor {
 	return &Conductor{jobRepository: jobRepository}
-}
-
-type Data struct {
-	JobID    string            `json:"job_id"`
-	StageID  int               `json:"stage_id"`
-	Status   string            `json:"status"`
-	Artifact map[string]string `json:"artifact"`
-	Error    string            `json:"error"`
-}
-
-type Payload struct {
-	ServiceName string `json:"service_name"`
-	Timestamp   string `json:"timestamp"`
-	Data        Data   `json:"data"`
 }
 
 func (con *Conductor) Orchestrate(m string) {
@@ -76,45 +59,25 @@ func (con *Conductor) RunJob(job *models.Job) error {
 // OrchestrateJob sends a request to the next task
 func (con *Conductor) OrchestrateJob(job *models.Job) error {
 	// Get next task
-	reqBodyMap := map[string]interface{}{
-		"job_id":   job.Id.Hex(),
-		"input":    job.InputProtein,
-		"config":   job.Options[job.Meta[job.StageId]],
-		"artifact": job.Artifacts,
-		"meta":     job.Meta,
+	reqBodyMap := PipelineRequest{
+		JobId:    job.Id.Hex(),
+		Input:    job.InputProtein,
+		Config:   job.Options[job.Meta[job.StageId]],
+		Artifact: job.Artifacts,
+		Meta:     job.Meta,
 	}
 	if job.StageId == 2 {
-		reqBodyMap["lab_result"] = job.LabResult
-	}
-	reqBody, err := json.Marshal(reqBodyMap)
-
-	if err != nil {
-		return err
+		reqBodyMap.LabResult = job.LabResult
 	}
 
-	steps := []string{"SEQUENCER", "EVOTUNE", "FIT_TOP", "MUTATION"}
+	err := con.StartPipelineComponent(job.StageId, reqBodyMap)
 
-	req, err := http.NewRequest("POST", os.Getenv(steps[job.StageId]+"_URL"), bytes.NewBuffer(reqBody))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	resp, err := client.Do(req)
 	if err != nil {
 		job.State = "FAILED"
 		if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
 			return err
 		}
 		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		job.State = "FAILED"
-		if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
-			return err
-		}
-		return fmt.Errorf("error: %s", resp.Status)
 	}
 	return nil
 }
@@ -154,7 +117,7 @@ func (con *Conductor) updateJobData(data Data) *models.Job {
 	}
 
 	if job.Artifacts == nil {
-		job.Artifacts = make(map[string]interface{})
+		job.Artifacts = make(map[string]models.Artifact)
 	}
 	if job.StageId < 3 {
 		job.Artifacts[job.Meta[job.StageId]] = data.Artifact

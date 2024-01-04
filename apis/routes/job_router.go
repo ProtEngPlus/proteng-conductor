@@ -17,4 +17,5 @@ func JobRoute(router *gin.Engine, jr repositories.JobRepository, con *conductor.
 	router.PUT("/jobs/:id", jc.UpdateJob)
 	router.DELETE("/jobs/:id", jc.DeleteJob)
 	router.POST("/jobs/:id/run", jc.RunJob)
+	router.POST("/jobs/:id/:stage", jc.CreateDuplicateJob)
 }

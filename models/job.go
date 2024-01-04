@@ -28,7 +28,7 @@ type Job struct {
 	Artifacts    map[string]Artifact    `bson:"artifact" json:"artifact"`
 	Meta         []string               `bson:"meta" json:"meta"`
 	InputProtein string                 `bson:"input_protein" json:"input_protein"`
-	RefJobId     string                 `bson:"ref_job_id" json:"ref_job_id"`
+	RefJobId     primitive.ObjectID     `bson:"ref_job_id" json:"ref_job_id"`
 	CreatedAt    time.Time              `bson:"created_at" json:"created_at"`
 	CompleteAt   time.Time              `bson:"complete_at" json:"complete_at"`
 }

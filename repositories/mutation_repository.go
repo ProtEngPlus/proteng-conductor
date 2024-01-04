@@ -32,7 +32,7 @@ func (mr *mutationRepository) GetAll(query map[string]interface{}) ([]*models.Mu
 	var mutations []*models.Mutation
 	filter := bson.M{}
 
-	if query != nil && len(query) > 0 {
+	if len(query) > 0 {
 		if jobID, ok := query["job_id"]; ok {
 			filter["job_id"] = jobID
 		}

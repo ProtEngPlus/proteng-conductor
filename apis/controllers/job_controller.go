@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 
 	"proteng-conductor/models"
@@ -20,7 +22,14 @@ func NewJobController(jobRepository repositories.JobRepository, conductor *condu
 
 // GetAllJobs retrieves all jobs
 func (jc *JobController) GetAllJobs(c *gin.Context) {
-	jobs, err := jc.jobRepository.GetAll()
+	query := map[string]interface{}{}
+	if userID := c.Query("user_id"); userID != "" {
+		query["user_id"] = userID
+	}
+	if states := c.QueryArray("state"); len(states) > 0 {
+		query["state"] = states
+	}
+	jobs, err := jc.jobRepository.GetAll(query)
 	if err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)
 		return
@@ -49,6 +58,40 @@ func (jc *JobController) CreateJob(c *gin.Context) {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
 		return
 	}
+
+	err = jc.jobRepository.Create(&job)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	apiutil.ApiResponseOk(c, job)
+}
+
+func (jc *JobController) CreateDuplicateJob(c *gin.Context) {
+	id := c.Param("id")
+	stageId, err := strconv.Atoi(c.Param("stage"))
+	if err != nil || stageId < 0 || stageId > 2 {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid stage id")
+		return
+	}
+	refJob, err := jc.jobRepository.FindById(id)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+		return
+	}
+
+	var job models.Job
+	err = c.BindJSON(&job)
+	if err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
+		return
+	}
+	for i := 0; i <= stageId; i++ {
+		job.Artifacts[refJob.Meta[i]] = refJob.Artifacts[refJob.Meta[i]]
+	}
+	job.RefJobId = refJob.Id
+	job.StageId = stageId + 1
 
 	err = jc.jobRepository.Create(&job)
 	if err != nil {

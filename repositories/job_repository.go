@@ -17,7 +17,7 @@ type JobRepository interface {
 	FindById(id string) (*models.Job, error)
 	Update(id string, job *models.Job) error
 	Delete(id string) error
-	GetAll() ([]*models.Job, error)
+	GetAll(query map[string]interface{}) ([]*models.Job, error)
 }
 
 type jobRepository struct {
@@ -28,8 +28,18 @@ func NewJobRepository() JobRepository {
 	return &jobRepository{collection: database.GetCollection("jobs")}
 }
 
-func (jr *jobRepository) GetAll() ([]*models.Job, error) {
+func (jr *jobRepository) GetAll(query map[string]interface{}) ([]*models.Job, error) {
 	var jobs []*models.Job
+	filter := bson.M{}
+
+	if len(query) > 0 {
+		if userID, ok := query["user_id"]; ok {
+			filter["user_id"] = userID
+		}
+		if states, ok := query["state"]; ok {
+			filter["state"] = bson.M{"$in": states}
+		}
+	}
 
 	cursor, err := jr.collection.Find(context.Background(), bson.M{})
 	if err != nil {

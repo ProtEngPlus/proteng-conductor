@@ -31,9 +31,10 @@ func main() {
 		logrus.Fatalf("Failed to connect to database: %v", err)
 	}
 	jobRepository := repositories.NewJobRepository()
+	mutationRepository := repositories.NewMutationRepository()
 
 	// conductor
-	conductor := conductor.NewConductor(jobRepository)
+	conductor := conductor.NewConductor(jobRepository, mutationRepository)
 	rabbitConsumer := rabbitmq.NewConsumer(*conductor)
 	amqpURL := fmt.Sprintf("amqp://%s:%s@%s:%s/", os.Getenv("RABBITMQ_USER"), os.Getenv("RABBITMQ_PASSWORD"), os.Getenv("RABBITMQ_HOST"), os.Getenv("RABBITMQ_PORT"))
 	go func() {
@@ -49,6 +50,7 @@ func main() {
 
 	// routes
 	routes.JobRoute(router, jobRepository, conductor)
+	routes.MutationRoute(router, jobRepository, mutationRepository, conductor)
 
 	// start server
 	httpPort := os.Getenv("HTTP_PORT")

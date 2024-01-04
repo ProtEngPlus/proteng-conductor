@@ -238,6 +238,7 @@ func (con *Conductor) updateMutationData(data Data) {
 	}
 
 	mutation.State = "COMPLETED"
+	mutation.Result = data.MutationResult
 	if err := con.mutationRepository.Update(data.MutationID, mutation); err != nil {
 		fmt.Println("Failed to update mutation:", err)
 		return

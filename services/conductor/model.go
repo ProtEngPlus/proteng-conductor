@@ -5,12 +5,13 @@ import (
 )
 
 type Data struct {
-	JobID      string          `json:"job_id"`
-	MutationID string          `json:"mutation_id"`
-	StageID    int             `json:"stage_id"`
-	Status     string          `json:"status"`
-	Artifact   models.Artifact `json:"artifact"`
-	Error      string          `json:"error"`
+	JobID          string             `json:"job_id"`
+	MutationID     string             `json:"mutation_id,omitempty"`
+	StageID        int                `json:"stage_id"`
+	Status         string             `json:"status"`
+	Artifact       models.Artifact    `json:"artifact"`
+	MutationResult map[string]float32 `json:"mutation_result,omitempty"`
+	Error          string             `json:"error"`
 }
 
 type Payload struct {

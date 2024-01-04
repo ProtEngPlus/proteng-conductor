@@ -5,11 +5,12 @@ import (
 )
 
 type Data struct {
-	JobID    string          `json:"job_id"`
-	StageID  int             `json:"stage_id"`
-	Status   string          `json:"status"`
-	Artifact models.Artifact `json:"artifact"`
-	Error    string          `json:"error"`
+	JobID      string          `json:"job_id"`
+	MutationID string          `json:"mutation_id"`
+	StageID    int             `json:"stage_id"`
+	Status     string          `json:"status"`
+	Artifact   models.Artifact `json:"artifact"`
+	Error      string          `json:"error"`
 }
 
 type Payload struct {
@@ -19,12 +20,13 @@ type Payload struct {
 }
 
 type PipelineRequest struct {
-	JobId     string           `json:"job_id"`
-	Input     string           `json:"input"`
-	Config    interface{}      `json:"config"`
-	Artifact  interface{}      `json:"artifact"`
-	Meta      []string         `json:"meta"`
-	LabResult models.LabResult `json:"lab_result"`
+	JobId      string           `json:"job_id"`
+	Input      string           `json:"input"`
+	Config     interface{}      `json:"config"`
+	Artifact   interface{}      `json:"artifact"`
+	Meta       []string         `json:"meta"`
+	LabResult  models.LabResult `json:"lab_result,omitempty"`
+	MutationId string           `json:"mutation_id,omitempty"`
 }
 
 type PipelineResponse struct {

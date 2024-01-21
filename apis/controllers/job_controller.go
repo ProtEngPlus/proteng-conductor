@@ -1,10 +1,13 @@
 package controllers
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/xeipuuv/gojsonschema"
 
+	"proteng-conductor/config"
 	"proteng-conductor/models"
 	"proteng-conductor/repositories"
 	"proteng-conductor/services/conductor"
@@ -58,6 +61,11 @@ func (jc *JobController) CreateJob(c *gin.Context) {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
 		return
 	}
+	err = validateJobOptions(&job)
+	if err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
+		return
+	}
 
 	err = jc.jobRepository.Create(&job)
 	if err != nil {
@@ -92,6 +100,12 @@ func (jc *JobController) CreateDuplicateJob(c *gin.Context) {
 	}
 	job.RefJobId = refJob.Id
 	job.StageId = stageId + 1
+
+	err = validateJobOptions(&job)
+	if err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
+		return
+	}
 
 	err = jc.jobRepository.Create(&job)
 	if err != nil {
@@ -165,4 +179,23 @@ func (jc *JobController) RunJob(c *gin.Context) {
 	}
 
 	apiutil.ApiResponseOk(c, nil, "job running")
+}
+
+func validateJobOptions(job *models.Job) error {
+	for _, service := range job.Meta {
+		if _, ok := job.Options[service]; !ok {
+			return fmt.Errorf("error: missing options for %s", service)
+		}
+		option := job.Options[service]
+		schemaLoader := gojsonschema.NewStringLoader(config.GetSchema(service))
+		optionLoader := gojsonschema.NewGoLoader(option)
+		result, err := gojsonschema.Validate(schemaLoader, optionLoader)
+		if err != nil {
+			return err
+		}
+		if !result.Valid() {
+			return fmt.Errorf(result.Errors()[0].String())
+		}
+	}
+	return nil
 }

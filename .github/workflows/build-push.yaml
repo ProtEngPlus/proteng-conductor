@@ -2,6 +2,11 @@ name: Build and Publish
 
 on:
   workflow_dispatch:
+    inputs:
+      auto_deploy:
+        description: auto deploy to devops-k8s
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -29,7 +34,7 @@ jobs:
       
       - name: Get short commit SHA
         run: |
-          export SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-8)
+          export SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           echo "SHORT_SHA=${SHORT_SHA}" >> ${GITHUB_ENV}
           
       - name: Build and push
@@ -41,5 +46,27 @@ jobs:
           tags: ${{ secrets.IMAGE_REPO }}/${{ secrets.REGISTRY_USERNAME }}/proteng-conductor:${{ env.SHORT_SHA }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  
+  deploy:
+      name: Auto Deploy
+      runs-on: ubuntu-latest
+      needs: build
+      if: ${{ github.event.inputs.auto_deploy }}
+      permissions:
+        contents: read
+        packages: write
+      steps:
+        - name: Get short commit SHA
+          run: |
+            export SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+            echo "SHORT_SHA=${SHORT_SHA}" >> ${GITHUB_ENV}
+            
+        - name: Auto Deploy to devops-k8s
+          uses:  convictional/trigger-workflow-and-wait@v1.6.5
+          with:
+            owner: ProtEngPlus
+            repo: devops-k8s
+            github_token: ${{ secrets.ACTIONS_AUTH_TOKEN }}
+            github_user: protenger
+            workflow_file_name: update-tag.yaml
+            client_payload: ${{ format('{{"path":"{0}","tag":"{1}"}}', 'k8s/apps/conductor/overlays/dev/kustomization.yaml',
+    

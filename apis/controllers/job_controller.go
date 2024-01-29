@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/xeipuuv/gojsonschema"
+	"go.mongodb.org/mongo-driver/bson"
 
 	"proteng-conductor/config"
 	"proteng-conductor/models"
@@ -31,6 +32,9 @@ func (jc *JobController) GetAllJobs(c *gin.Context) {
 	}
 	if states := c.QueryArray("state"); len(states) > 0 {
 		query["state"] = states
+	}
+	if name := c.Query("name"); name != "" {
+		query["$text"] = bson.M{"$search": name}
 	}
 	jobs, err := jc.jobRepository.GetAll(query)
 	if err != nil {

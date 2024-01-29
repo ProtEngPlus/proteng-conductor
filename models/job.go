@@ -20,6 +20,7 @@ type Artifact struct {
 
 type Job struct {
 	Id           primitive.ObjectID     `bson:"_id" json:"id"`
+	Name         string                 `bson:"name" json:"name"`
 	State        string                 `bson:"state" json:"state"`
 	StageId      int                    `bson:"stage_id" json:"stage_id"`
 	UserId       string                 `bson:"user_id" json:"user_id"`

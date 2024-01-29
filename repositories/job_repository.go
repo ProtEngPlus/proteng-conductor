@@ -25,7 +25,13 @@ type jobRepository struct {
 }
 
 func NewJobRepository() JobRepository {
-	return &jobRepository{collection: database.GetCollection("jobs")}
+	collection := database.GetCollection("jobs")
+	collection.Indexes().CreateOne(context.Background(), mongo.IndexModel{
+		Keys: bson.M{
+			"name": "text",
+		},
+	})
+	return &jobRepository{collection: collection}
 }
 
 func (jr *jobRepository) GetAll(query map[string]interface{}) ([]*models.Job, error) {
@@ -38,6 +44,9 @@ func (jr *jobRepository) GetAll(query map[string]interface{}) ([]*models.Job, er
 		}
 		if states, ok := query["state"]; ok {
 			filter["state"] = bson.M{"$in": states}
+		}
+		if name, ok := query["name"]; ok {
+			filter["$text"] = bson.M{"$search": name}
 		}
 	}
 
@@ -102,6 +111,7 @@ func (jr *jobRepository) Update(id string, job *models.Job) error {
 
 	update := bson.M{
 		"$set": bson.M{
+			"job_name":      job.Name,
 			"state":         job.State,
 			"stage_id":      job.StageId,
 			"lab_result":    job.LabResult,

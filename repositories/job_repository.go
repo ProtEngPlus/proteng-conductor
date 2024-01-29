@@ -111,7 +111,7 @@ func (jr *jobRepository) Update(id string, job *models.Job) error {
 
 	update := bson.M{
 		"$set": bson.M{
-			"job_name":      job.Name,
+			"name":          job.Name,
 			"state":         job.State,
 			"stage_id":      job.StageId,
 			"lab_result":    job.LabResult,

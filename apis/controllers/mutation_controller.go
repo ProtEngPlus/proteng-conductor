@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"fmt"
+
 	"github.com/gin-gonic/gin"
 
 	"proteng-conductor/models"
@@ -62,6 +64,7 @@ func (mc *MutationController) CreateMutation(c *gin.Context) {
 	}
 
 	if job.State != "COMPLETED" {
+		err = fmt.Errorf("error: job is currently running")
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: job is currently running")
 		return
 	}

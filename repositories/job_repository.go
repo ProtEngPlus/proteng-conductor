@@ -18,6 +18,7 @@ type JobRepository interface {
 	Update(id string, job *models.Job) error
 	Delete(id string) error
 	GetAll(query map[string]interface{}) ([]*models.Job, error)
+	AddErrorLog(id string, log string) error
 }
 
 type jobRepository struct {
@@ -141,6 +142,31 @@ func (jr *jobRepository) Delete(id string) error {
 	filter := bson.M{"_id": objectId}
 
 	_, err = jr.collection.DeleteOne(context.Background(), filter)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (jr *jobRepository) AddErrorLog(id string, log string) error {
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+
+	filter := bson.M{"_id": objectId}
+
+	update := bson.M{
+		"$push": bson.M{
+			"error_logs": models.ErrLog{
+				Content:   log,
+				Timestamp: time.Now(),
+			},
+		},
+	}
+
+	_, err = jr.collection.UpdateOne(context.Background(), filter, update)
 	if err != nil {
 		return err
 	}

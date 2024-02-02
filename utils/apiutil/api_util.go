@@ -1,6 +1,7 @@
 package apiutil
 
 import (
+	"fmt"
 	"net/http"
 
 	"proteng-conductor/models"
@@ -23,6 +24,9 @@ func ApiResponseErrorBadRequest(c *gin.Context, err error, messages ...string) {
 	if len(messages) == 0 {
 		messages = append(messages, "")
 	}
+	if err == nil {
+		err = fmt.Errorf("bad request")
+	}
 	c.JSON(http.StatusBadRequest, models.HttpResponseError{
 		Code:    http.StatusBadRequest,
 		Error:   err.Error(),
@@ -34,6 +38,9 @@ func ApiResponseInternalServerError(c *gin.Context, err error, messages ...strin
 	if len(messages) == 0 {
 		messages = append(messages, "")
 	}
+	if err == nil {
+		err = fmt.Errorf("internal server error")
+	}
 	c.JSON(http.StatusInternalServerError, models.HttpResponseError{
 		Code:    http.StatusInternalServerError,
 		Error:   err.Error(),
@@ -44,6 +51,9 @@ func ApiResponseInternalServerError(c *gin.Context, err error, messages ...strin
 func ApiResponseNotFound(c *gin.Context, err error, messages ...string) {
 	if len(messages) == 0 {
 		messages = append(messages, "")
+	}
+	if err == nil {
+		err = fmt.Errorf("not found")
 	}
 	c.JSON(http.StatusNotFound, models.HttpResponseError{
 		Code:    http.StatusNotFound,

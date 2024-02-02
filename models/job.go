@@ -18,6 +18,11 @@ type Artifact struct {
 	Url        string `bson:"url" json:"url"`
 }
 
+type ErrLog struct {
+	Content   string    `bson:"content" json:"content"`
+	Timestamp time.Time `bson:"timestamp" json:"timestamp"`
+}
+
 type Job struct {
 	Id           primitive.ObjectID     `bson:"_id" json:"id"`
 	Name         string                 `bson:"name" json:"name"`
@@ -32,4 +37,5 @@ type Job struct {
 	RefJobId     primitive.ObjectID     `bson:"ref_job_id" json:"ref_job_id"`
 	CreatedAt    time.Time              `bson:"created_at" json:"created_at"`
 	CompleteAt   time.Time              `bson:"complete_at" json:"complete_at"`
+	ErrorLogs    []ErrLog               `bson:"error_logs" json:"error_logs"`
 }

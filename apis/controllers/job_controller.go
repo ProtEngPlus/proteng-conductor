@@ -167,11 +167,13 @@ func (jc *JobController) RunJob(c *gin.Context) {
 	}
 
 	if job.State == "ONGOING" {
+		err = fmt.Errorf("error: job is already ongoing")
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: job is already ongoing")
 		return
 	}
 
 	if job.State == "COMPLETED" {
+		err = fmt.Errorf("error: job is already completed")
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: job is already completed")
 		return
 	}

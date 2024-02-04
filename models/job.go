@@ -7,9 +7,9 @@ import (
 )
 
 type LabResult struct {
-	Total     int      `bson:"total" json:"total"`
-	Sequences []string `bson:"sequences" json:"sequences"`
-	Scores    []string `bson:"scores" json:"scores"`
+	Total     int       `bson:"total" json:"total"`
+	Sequences []string  `bson:"sequences" json:"sequences"`
+	Scores    []float32 `bson:"scores" json:"scores"`
 }
 
 type Artifact struct {

@@ -5,28 +5,29 @@ import (
 
 	"github.com/protengplus/proteng-conductor/internal/logger"
 
-	"github.com/spf13/viper"
+	"github.com/joho/godotenv"
+	"github.com/kelseyhightower/envconfig"
 )
 
 var Config config
 
 type config struct {
-	Env      string `mapstructure:"ENV"`
-	HttpPort string `mapstructure:"HTTP_PORT"`
+	Env      string `envconfig:"ENV"`
+	HttpPort string `envconfig:"HTTP_PORT"`
 
-	RabbitMqUser     string `mapstructure:"RABBITMQ_USER"`
-	RabbitMqPassword string `mapstructure:"RABBITMQ_PASSWORD"`
-	RabbitMqHost     string `mapstructure:"RABBITMQ_HOST"`
-	RabbitMqPort     string `mapstructure:"RABBITMQ_PORT"`
-	JobQueue         string `mapstructure:"JOB_QUEUE"`
+	RabbitMqUser     string `envconfig:"RABBITMQ_USER"`
+	RabbitMqPassword string `envconfig:"RABBITMQ_PASSWORD"`
+	RabbitMqHost     string `envconfig:"RABBITMQ_HOST"`
+	RabbitMqPort     string `envconfig:"RABBITMQ_PORT"`
+	JobQueue         string `envconfig:"JOB_QUEUE"`
 
-	MongoUri string `mapstructure:"MONGO_URI"`
-	MongoDb  string `mapstructure:"MONGO_DB"`
+	MongoUri string `envconfig:"MONGO_URI"`
+	MongoDb  string `envconfig:"MONGO_DB"`
 
-	SequencerUrl string `mapstructure:"SEQUENCER_URL"`
-	EvotuneUrl   string `mapstructure:"EVOTUNE_URL"`
-	FittopUrl    string `mapstructure:"FITTOP_URL"`
-	MutationUrl  string `mapstructure:"MUTATION_URL"`
+	SequencerUrl string `envconfig:"SEQUENCER_URL"`
+	EvotuneUrl   string `envconfig:"EVOTUNE_URL"`
+	FittopUrl    string `envconfig:"FITTOP_URL"`
+	MutationUrl  string `envconfig:"MUTATION_URL"`
 }
 
 func AutomaticLoadEnv() {
@@ -38,15 +39,12 @@ func AutomaticLoadEnv() {
 		}
 	}
 
-	viper.AutomaticEnv()
-	err := viper.Unmarshal(&Config)
+	err := envconfig.Process("", &Config)
 	if err != nil {
-		logger.Fatalf("Unable to decode env into config struct, %v", err)
+		logger.Fatalf("Error unmarshalling env vars: %v", err)
 	}
 }
 
 func LoadEnvFromPath(path string) error {
-	viper.SetConfigType("env")
-	viper.SetConfigFile(path)
-	return viper.ReadInConfig()
+	return godotenv.Load(path)
 }

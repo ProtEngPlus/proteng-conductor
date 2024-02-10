@@ -17,11 +17,13 @@ ENV=dev go run main.go
 ```
 Windows - CMD
 ```
-set ENV=dev && go run main.go
+set ENV=dev
+go run main.go
 ```
 Windows - Powershell
 ```
-$Env:ENV = "dev" && go run main.go
+$Env:ENV = "dev"
+go run main.go
 ```
 
 ## Building

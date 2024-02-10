@@ -21,9 +21,8 @@ func main() {
 	logger.InitZap()
 
 	config.AutomaticLoadEnv()
-	logger.Infof("%+v", config.Config)
 
-	os.Setenv("GIN_MODE", "release")
+	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 
 	// database

@@ -1,8 +1,8 @@
 #build stage
 FROM golang:1.20 AS builder
-WORKDIR /go/src/proteng-conductor
+WORKDIR /go/src/github.com/protengplus/proteng-conductor
 ADD . .
-RUN go get proteng-conductor
+RUN go get github.com/protengplus/proteng-conductor
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -ldflags '-extldflags "-static"' -o app ./main.go
 
 #final stage

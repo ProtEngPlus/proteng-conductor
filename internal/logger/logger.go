@@ -10,6 +10,7 @@ import (
 var Zap *zap.Logger
 
 func InitZap() {
+	// Note: use os.Getenv("ENV") because we will initialize the logger before loading the env
 	if os.Getenv("ENV") == "prod" {
 		_logger, _ := zap.NewProduction()
 		Zap = _logger

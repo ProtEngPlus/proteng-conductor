@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/protengplus/proteng-conductor/apis/routes"
@@ -43,7 +42,7 @@ func main() {
 	rabbitMqPort := config.Config.RabbitMqPort
 	amqpURL := fmt.Sprintf("amqp://%s:%s@%s:%s/", rabbitMqUser, rabbitMqPassword, rabbitMqHost, rabbitMqPort)
 	go func() {
-		err := rabbitConsumer.RunConsumer(amqpURL, os.Getenv("JOB_QUEUE"))
+		err := rabbitConsumer.RunConsumer(amqpURL, config.Config.JobQueue)
 		if err != nil {
 			logger.Fatalf("Error in RabbitMQ Consumer: %v", err)
 		}

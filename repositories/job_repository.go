@@ -2,10 +2,10 @@ package repositories
 
 import (
 	"context"
-	"proteng-conductor/database"
+	"github.com/protengplus/proteng-conductor/database"
 	"time"
 
-	"proteng-conductor/models"
+	"github.com/protengplus/proteng-conductor/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"

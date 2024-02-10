@@ -1,9 +1,9 @@
 package routes
 
 import (
-	"proteng-conductor/apis/controllers"
-	"proteng-conductor/repositories"
-	"proteng-conductor/services/conductor"
+	"github.com/protengplus/proteng-conductor/apis/controllers"
+	"github.com/protengplus/proteng-conductor/internal/conductor"
+	"github.com/protengplus/proteng-conductor/repositories"
 
 	"github.com/gin-gonic/gin"
 )

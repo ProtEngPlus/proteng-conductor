@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"proteng-conductor/models"
+	"github.com/protengplus/proteng-conductor/models"
 
 	"github.com/gin-gonic/gin"
 )

@@ -1,34 +1,35 @@
 package main
 
 import (
-
-	// "context"
-	// "net/http"
-	// "os/signal"
-	// "syscall"
-
 	"fmt"
 	"os"
-	"proteng-conductor/apis/routes"
-	"proteng-conductor/config"
-	"proteng-conductor/database"
-	"proteng-conductor/repositories"
-	"proteng-conductor/services/conductor"
-	"proteng-conductor/services/rabbitmq"
+	"time"
 
+	"github.com/protengplus/proteng-conductor/apis/routes"
+	"github.com/protengplus/proteng-conductor/config"
+	"github.com/protengplus/proteng-conductor/database"
+	"github.com/protengplus/proteng-conductor/internal/conductor"
+	"github.com/protengplus/proteng-conductor/internal/logger"
+	"github.com/protengplus/proteng-conductor/internal/rabbitmq"
+	"github.com/protengplus/proteng-conductor/repositories"
+
+	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	config.AutomaticLoadEnv()
+	logger.InitZap()
 
+	config.AutomaticLoadEnv()
+	logger.Infof("%+v", config.Config)
+
+	os.Setenv("GIN_MODE", "release")
 	router := gin.Default()
 
 	// database
 	err := database.ConnectToDB()
 	if err != nil {
-		logrus.Fatalf("Failed to connect to database: %v", err)
+		logger.Fatalf("Failed to connect to database: %v", err)
 	}
 	jobRepository := repositories.NewJobRepository()
 	mutationRepository := repositories.NewMutationRepository()
@@ -36,14 +37,27 @@ func main() {
 	// conductor
 	conductor := conductor.NewConductor(jobRepository, mutationRepository)
 	rabbitConsumer := rabbitmq.NewConsumer(*conductor)
-	amqpURL := fmt.Sprintf("amqp://%s:%s@%s:%s/", os.Getenv("RABBITMQ_USER"), os.Getenv("RABBITMQ_PASSWORD"), os.Getenv("RABBITMQ_HOST"), os.Getenv("RABBITMQ_PORT"))
+
+	rabbitMqUser := config.Config.RabbitMqUser
+	rabbitMqPassword := config.Config.RabbitMqPassword
+	rabbitMqHost := config.Config.RabbitMqHost
+	rabbitMqPort := config.Config.RabbitMqPort
+	amqpURL := fmt.Sprintf("amqp://%s:%s@%s:%s/", rabbitMqUser, rabbitMqPassword, rabbitMqHost, rabbitMqPort)
 	go func() {
 		err := rabbitConsumer.RunConsumer(amqpURL, os.Getenv("JOB_QUEUE"))
 		if err != nil {
-			logrus.Fatalf("Error in RabbitMQ Consumer: %v", err)
+			logger.Fatalf("Error in RabbitMQ Consumer: %v", err)
 		}
 	}()
 
+	// logging middleware
+	router.Use(ginzap.GinzapWithConfig(logger.Zap, &ginzap.Config{
+		TimeFormat: time.RFC3339,
+		UTC:        true,
+		SkipPaths:  []string{"/metrics"},
+	}))
+
+	// health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "ok"})
 	})
@@ -52,24 +66,15 @@ func main() {
 	routes.JobRoute(router, jobRepository, conductor)
 	routes.MutationRoute(router, jobRepository, mutationRepository, conductor)
 
+	// panic recovery
+	router.Use(ginzap.RecoveryWithZap(logger.Zap, true))
+
 	// start server
-	httpPort := os.Getenv("HTTP_PORT")
+	httpPort := config.Config.HttpPort
 	err = router.Run(":" + httpPort)
 	if err != nil {
-		logrus.Fatalf("Failed to start server: %v", err)
+		logger.Fatalf("Failed to start server: %v", err)
 	}
 }
 
-// func gracefulShutdown(server *http.Server) {
-// 	quit := make(chan os.Signal, 1)
-// 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-// 	<-quit
-
-// 	logrus.Info("Shuttingdown Server ...")
-// 	if err := server.Shutdown(context.Background()); err != nil {
-// 		logrus.Fatalf("Server shutdowned with error: %v", err)
-// 	} else {
-// 		logrus.Info("Server shutdowned gracefully.")
-// 	}
-// }
+// TODO: Graceful shutdown

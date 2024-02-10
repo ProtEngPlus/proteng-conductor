@@ -5,10 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"proteng-conductor/models"
-	"proteng-conductor/repositories"
-	"proteng-conductor/services/conductor"
-	"proteng-conductor/utils/apiutil"
+	"github.com/protengplus/proteng-conductor/internal/conductor"
+	"github.com/protengplus/proteng-conductor/models"
+	"github.com/protengplus/proteng-conductor/repositories"
+	"github.com/protengplus/proteng-conductor/utils/apiutil"
 )
 
 type MutationController struct {

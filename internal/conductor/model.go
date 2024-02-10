@@ -1,7 +1,7 @@
 package conductor
 
 import (
-	"proteng-conductor/models"
+	"github.com/protengplus/proteng-conductor/models"
 )
 
 type Data struct {

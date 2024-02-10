@@ -8,11 +8,11 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 	"go.mongodb.org/mongo-driver/bson"
 
-	"proteng-conductor/config"
-	"proteng-conductor/models"
-	"proteng-conductor/repositories"
-	"proteng-conductor/services/conductor"
-	"proteng-conductor/utils/apiutil"
+	"github.com/protengplus/proteng-conductor/config"
+	"github.com/protengplus/proteng-conductor/internal/conductor"
+	"github.com/protengplus/proteng-conductor/models"
+	"github.com/protengplus/proteng-conductor/repositories"
+	"github.com/protengplus/proteng-conductor/utils/apiutil"
 )
 
 type JobController struct {

@@ -2,12 +2,13 @@ package rabbitmq
 
 import (
 	"errors"
-	"log"
 	"os"
 	"os/signal"
-	"proteng-conductor/services/conductor"
 	"syscall"
 	"time"
+
+	"github.com/protengplus/proteng-conductor/internal/conductor"
+	"github.com/protengplus/proteng-conductor/internal/logger"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -26,7 +27,7 @@ func (c *Consumer) RunConsumer(amqpURL string, queueName string) error {
 		attempts++
 		conn, err := amqp.Dial(amqpURL)
 		if err != nil {
-			log.Printf("Failed to connect to RabbitMQ: %v", err)
+			logger.Errorf("Failed to connect to RabbitMQ: %v", err)
 			if attempts >= 5 {
 				return errors.New("failed to connect to RabbitMQ after 5 attempts")
 			}
@@ -37,7 +38,7 @@ func (c *Consumer) RunConsumer(amqpURL string, queueName string) error {
 
 		ch, err := conn.Channel()
 		if err != nil {
-			log.Printf("Failed to open a channel: %v", err)
+			logger.Errorf("Failed to open a channel: %v", err)
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -51,7 +52,7 @@ func (c *Consumer) RunConsumer(amqpURL string, queueName string) error {
 			nil,       // arguments
 		)
 		if err != nil {
-			log.Printf("Failed to declare a queue: %v", err)
+			logger.Errorf("Failed to declare a queue: %v", err)
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -66,16 +67,16 @@ func (c *Consumer) RunConsumer(amqpURL string, queueName string) error {
 			nil,    // arguments
 		)
 		if err != nil {
-			log.Printf("Failed to register a consumer: %v", err)
+			logger.Errorf("Failed to register a consumer: %v", err)
 			time.Sleep(10 * time.Second)
 			continue
 		}
 
-		log.Printf(" [*] Waiting for messages from %s", q.Name)
+		logger.Infof(" [*] Waiting for messages from %s", q.Name)
 
 		go func() {
 			for d := range msgs {
-				log.Printf("Received a message: %v from %v", string(d.Body), q.Name)
+				logger.Infof("JobConsumer: Received a message: %v from %v", string(d.Body), q.Name)
 				c.conductor.Orchestrate(string(d.Body))
 			}
 		}()
@@ -84,7 +85,7 @@ func (c *Consumer) RunConsumer(amqpURL string, queueName string) error {
 		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
 		<-sig
-		log.Println("Shutting down consumer...")
+		logger.Zap.Info("Shutting down consumer...")
 		return nil
 	}
 }

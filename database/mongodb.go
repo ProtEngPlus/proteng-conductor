@@ -2,8 +2,9 @@ package database
 
 import (
 	"context"
-	"log"
-	"os"
+
+	"github.com/protengplus/proteng-conductor/config"
+	"github.com/protengplus/proteng-conductor/internal/logger"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -12,8 +13,8 @@ import (
 var Client *mongo.Client
 
 func ConnectToDB() error {
-	uri := os.Getenv("MONGO_URI")
-	log.Println("Connecting to MongoDB:", uri)
+	uri := config.Config.MongoUri
+	logger.Infof("Connecting to MongoDB")
 	clientOptions := options.Client().ApplyURI(uri)
 	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
@@ -26,9 +27,10 @@ func ConnectToDB() error {
 	}
 
 	Client = client
+	logger.Zap.Info("Connected to MongoDB")
 	return nil
 }
 
 func GetCollection(collectionName string) *mongo.Collection {
-	return Client.Database(os.Getenv("MONGO_DB")).Collection(collectionName)
+	return Client.Database(config.Config.MongoDb).Collection(collectionName)
 }

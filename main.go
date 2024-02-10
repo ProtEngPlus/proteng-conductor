@@ -23,7 +23,7 @@ func main() {
 	config.AutomaticLoadEnv()
 
 	gin.SetMode(gin.ReleaseMode)
-	router := gin.Default()
+	router := gin.New()
 
 	// database
 	err := database.ConnectToDB()
@@ -53,7 +53,7 @@ func main() {
 	router.Use(ginzap.GinzapWithConfig(logger.Zap, &ginzap.Config{
 		TimeFormat: time.RFC3339,
 		UTC:        true,
-		SkipPaths:  []string{"/metrics"},
+		SkipPaths:  []string{"/metrics", "/health"},
 	}))
 
 	// health check

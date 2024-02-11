@@ -1,7 +1,10 @@
 package models
 
 import (
+	"fmt"
 	"time"
+
+	"github.com/protengplus/proteng-conductor/models/enum"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -10,6 +13,13 @@ type LabResult struct {
 	Total     int       `bson:"total" json:"total"`
 	Sequences []string  `bson:"sequences" json:"sequences"`
 	Scores    []float32 `bson:"scores" json:"scores"`
+}
+
+func (lr LabResult) Validate() error {
+	if lr.Total != len(lr.Sequences) || lr.Total != len(lr.Scores) || len(lr.Sequences) != len(lr.Scores) {
+		return fmt.Errorf("data length mismatch")
+	}
+	return nil
 }
 
 type Artifact struct {
@@ -26,7 +36,7 @@ type ErrLog struct {
 type Job struct {
 	Id           primitive.ObjectID     `bson:"_id" json:"id"`
 	Name         string                 `bson:"name" json:"name"`
-	State        string                 `bson:"state" json:"state"`
+	State        enum.JobState          `bson:"state" json:"state"`
 	StageId      int                    `bson:"stage_id" json:"stage_id"`
 	UserId       string                 `bson:"user_id" json:"user_id"`
 	LabResult    LabResult              `bson:"lab_result" json:"lab_result"`
@@ -38,4 +48,18 @@ type Job struct {
 	CreatedAt    time.Time              `bson:"created_at" json:"created_at"`
 	CompleteAt   time.Time              `bson:"complete_at" json:"complete_at"`
 	ErrorLogs    []ErrLog               `bson:"error_logs" json:"error_logs"`
+}
+
+func (job Job) Validate(labresult bool) error {
+	if labresult {
+		err := job.LabResult.Validate()
+		if err != nil {
+			return err
+		}
+	}
+	if job.StageId < 0 || job.StageId > 3 {
+		return fmt.Errorf("invalid stage id")
+	}
+
+	return nil
 }

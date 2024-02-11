@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func MutationRoute(router *gin.Engine, jr repositories.JobRepository, mr repositories.MutationRepository, con *conductor.Conductor) {
+func MutationRoute(router *gin.Engine, jr repositories.JobRepository, mr repositories.MutationRepository, con conductor.Conductor) {
 	mc := controllers.NewMutationController(jr, mr, con)
 
 	router.GET("/mutations", mc.GetAllMutations)

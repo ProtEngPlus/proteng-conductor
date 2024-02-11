@@ -2,10 +2,11 @@ package repositories
 
 import (
 	"context"
-	"github.com/protengplus/proteng-conductor/database"
 	"time"
 
+	"github.com/protengplus/proteng-conductor/database"
 	"github.com/protengplus/proteng-conductor/models"
+	"github.com/protengplus/proteng-conductor/models/enum"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -79,7 +80,7 @@ func (mr *mutationRepository) FindById(id string) (*models.Mutation, error) {
 
 func (mr *mutationRepository) Create(mutation *models.Mutation) error {
 	mutation.Id = primitive.NewObjectID()
-	mutation.State = "PENDING"
+	mutation.State = enum.MutationStatePending
 	mutation.CreatedAt = time.Now()
 
 	_, err := mr.collection.InsertOne(context.Background(), mutation)
@@ -99,7 +100,7 @@ func (mr *mutationRepository) Update(id string, mutation *models.Mutation) error
 
 	update := bson.M{
 		"$set": bson.M{
-			"state":         mutation.State,
+			"state":         string(mutation.State),
 			"options":       mutation.Options,
 			"input_protein": mutation.InputProtein,
 			"result":        mutation.Result,

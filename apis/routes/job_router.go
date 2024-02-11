@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func JobRoute(router *gin.Engine, jr repositories.JobRepository, con *conductor.Conductor) {
+func JobRoute(router *gin.Engine, jr repositories.JobRepository, con conductor.Conductor) {
 	jc := controllers.NewJobController(jr, con)
 
 	router.GET("/jobs", jc.GetAllJobs)

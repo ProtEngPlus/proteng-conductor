@@ -14,10 +14,10 @@ import (
 type MutationController struct {
 	jobRepository      repositories.JobRepository
 	mutationRepository repositories.MutationRepository
-	conductor          *conductor.Conductor
+	conductor          conductor.Conductor
 }
 
-func NewMutationController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, conductor *conductor.Conductor) *MutationController {
+func NewMutationController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, conductor conductor.Conductor) *MutationController {
 	return &MutationController{jobRepository: jobRepository, mutationRepository: mutationRepository, conductor: conductor}
 }
 

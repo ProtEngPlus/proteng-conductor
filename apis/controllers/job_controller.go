@@ -17,10 +17,10 @@ import (
 
 type JobController struct {
 	jobRepository repositories.JobRepository
-	conductor     *conductor.Conductor
+	conductor     conductor.Conductor
 }
 
-func NewJobController(jobRepository repositories.JobRepository, conductor *conductor.Conductor) *JobController {
+func NewJobController(jobRepository repositories.JobRepository, conductor conductor.Conductor) *JobController {
 	return &JobController{jobRepository: jobRepository, conductor: conductor}
 }
 

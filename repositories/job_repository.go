@@ -2,10 +2,12 @@ package repositories
 
 import (
 	"context"
-	"github.com/protengplus/proteng-conductor/database"
 	"time"
 
+	"github.com/protengplus/proteng-conductor/database"
+	"github.com/protengplus/proteng-conductor/internal/logger"
 	"github.com/protengplus/proteng-conductor/models"
+	"github.com/protengplus/proteng-conductor/models/enum"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -92,7 +94,7 @@ func (jr *jobRepository) FindById(id string) (*models.Job, error) {
 
 func (jr *jobRepository) Create(job *models.Job) error {
 	job.Id = primitive.NewObjectID()
-	job.State = "CREATED"
+	job.State = enum.JobStateCreated
 	job.CreatedAt = time.Now()
 
 	_, err := jr.collection.InsertOne(context.Background(), job)
@@ -113,7 +115,7 @@ func (jr *jobRepository) Update(id string, job *models.Job) error {
 	update := bson.M{
 		"$set": bson.M{
 			"name":          job.Name,
-			"state":         job.State,
+			"state":         string(job.State),
 			"stage_id":      job.StageId,
 			"lab_result":    job.LabResult,
 			"options":       job.Options,
@@ -152,6 +154,7 @@ func (jr *jobRepository) Delete(id string) error {
 func (jr *jobRepository) AddErrorLog(id string, log string) error {
 	objectId, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
+		logger.Errorf("JobRepository: AddErrorLog: %s", err.Error())
 		return err
 	}
 
@@ -168,6 +171,7 @@ func (jr *jobRepository) AddErrorLog(id string, log string) error {
 
 	_, err = jr.collection.UpdateOne(context.Background(), filter, update)
 	if err != nil {
+		logger.Errorf("JobRepository: AddErrorLog: %s", err.Error())
 		return err
 	}
 

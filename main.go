@@ -34,7 +34,7 @@ func main() {
 
 	// conductor
 	conductor := conductor.NewConductor(jobRepository, mutationRepository)
-	rabbitConsumer := rabbitmq.NewConsumer(*conductor)
+	rabbitConsumer := rabbitmq.NewConsumer(conductor)
 
 	rabbitMqUser := config.Config.RabbitMqUser
 	rabbitMqPassword := config.Config.RabbitMqPassword

@@ -54,42 +54,26 @@ var Schemas = map[string]string{
                 "n_splits": {
                     "type": "integer"
                 },
-                "n_epochs_config": {
-                    "type": "object",
-                    "properties": {
-                        "low": {
-                            "type": "integer"
-                        },
-                        "high": {
-                            "type": "integer"
-                        }
-                    },
-                    "required": [
-                        "low",
-                        "high"
-                    ]
+                "n_epochs_config_low": {
+                    "type": "integer"
                 },
-                "learning_rate_config": {
-                    "type": "object",
-                    "properties": {
-                        "low": {
-                            "type": "number"
-                        },
-                        "high": {
-                            "type": "number"
-                        }
-                    },
-                    "required": [
-                        "low",
-                        "high"
-                    ]
+                "n_epochs_config_high": {
+                    "type": "integer"
+                },
+                "learning_rate_config_low": {
+                    "type": "number"
+                },
+                "learning_rate_config_high": {
+                    "type": "number"
                 }
             },
             "required": [
                 "n_trials",
                 "n_splits",
-                "n_epochs_config",
-                "learning_rate_config"
+                "n_epochs_config_low",
+                "n_epochs_config_high",
+                "learning_rate_config_low",
+                "learning_rate_config_high"
             ]
         }`,
 	"ridgecv": `

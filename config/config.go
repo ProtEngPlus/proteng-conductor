@@ -26,7 +26,7 @@ type config struct {
 
 	SequencerUrl string `envconfig:"SEQUENCER_URL"`
 	EvotuneUrl   string `envconfig:"EVOTUNE_URL"`
-	FittopUrl    string `envconfig:"FITTOP_URL"`
+	FittopUrl    string `envconfig:"FIT_TOP_URL"`
 	MutationUrl  string `envconfig:"MUTATION_URL"`
 }
 

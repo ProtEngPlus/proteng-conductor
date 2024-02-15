@@ -13,6 +13,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+//go:generate mockgen -source=mutation_repository.go -destination=mock_repository/mock_mutation_repository.go -package=mock_repository
+
 type MutationRepository interface {
 	Create(mutation *models.Mutation) error
 	FindById(id string) (*models.Mutation, error)

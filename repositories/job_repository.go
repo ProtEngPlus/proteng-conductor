@@ -14,6 +14,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+//go:generate mockgen -source=job_repository.go -destination=mock_repository/mock_job_repository.go -package=mock_repository
+
 type JobRepository interface {
 	Create(job *models.Job) error
 	FindById(id string) (*models.Job, error)

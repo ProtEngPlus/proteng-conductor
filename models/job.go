@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/protengplus/proteng-conductor/internal/validator"
 	"github.com/protengplus/proteng-conductor/models/enum"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type LabResult struct {
-	Total     int       `bson:"total" json:"total"`
-	Sequences []string  `bson:"sequences" json:"sequences"`
-	Scores    []float32 `bson:"scores" json:"scores"`
+	Total     int       `bson:"total" json:"total" validate:"required,gte=0"`
+	Sequences []string  `bson:"sequences" json:"sequences" validate:"required"`
+	Scores    []float32 `bson:"scores" json:"scores" validate:"required"`
 }
 
 func (lr LabResult) Validate() error {
@@ -35,15 +36,15 @@ type ErrLog struct {
 
 type Job struct {
 	Id           primitive.ObjectID     `bson:"_id" json:"id"`
-	Name         string                 `bson:"name" json:"name"`
+	Name         string                 `bson:"name" json:"name" validate:"required"`
 	State        enum.JobState          `bson:"state" json:"state"`
-	StageId      int                    `bson:"stage_id" json:"stage_id"`
-	UserId       string                 `bson:"user_id" json:"user_id"`
+	StageId      int                    `bson:"stage_id" json:"stage_id" validate:"gte=0,lte=3"`
+	UserId       string                 `bson:"user_id" json:"user_id" validate:"required"`
 	LabResult    LabResult              `bson:"lab_result" json:"lab_result"`
-	Options      map[string]interface{} `bson:"options" json:"options"`
+	Options      map[string]interface{} `bson:"options" json:"options" validate:"required"`
 	Artifacts    map[string]Artifact    `bson:"artifact" json:"artifact"`
 	Meta         []string               `bson:"meta" json:"meta"`
-	InputProtein string                 `bson:"input_protein" json:"input_protein"`
+	InputProtein string                 `bson:"input_protein" json:"input_protein" validate:"required"`
 	RefJobId     primitive.ObjectID     `bson:"ref_job_id" json:"ref_job_id"`
 	CreatedAt    time.Time              `bson:"created_at" json:"created_at"`
 	CompleteAt   time.Time              `bson:"complete_at" json:"complete_at"`
@@ -52,14 +53,15 @@ type Job struct {
 
 func (job Job) Validate(labresult bool) error {
 	if labresult {
-		err := job.LabResult.Validate()
+		err := validator.Validate.Struct(job.LabResult)
+		if err != nil {
+			return err
+		}
+		err = job.LabResult.Validate()
 		if err != nil {
 			return err
 		}
 	}
-	if job.StageId < 0 || job.StageId > 3 {
-		return fmt.Errorf("invalid stage id")
-	}
 
-	return nil
+	return validator.Validate.Struct(job)
 }

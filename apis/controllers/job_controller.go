@@ -65,6 +65,12 @@ func (jc *JobController) CreateJob(c *gin.Context) {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
 		return
 	}
+
+	if err := job.Validate(false); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid job")
+		return
+	}
+
 	err = validateJobOptions(&job)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")

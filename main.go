@@ -10,6 +10,7 @@ import (
 	"github.com/protengplus/proteng-conductor/internal/conductor"
 	"github.com/protengplus/proteng-conductor/internal/logger"
 	"github.com/protengplus/proteng-conductor/internal/rabbitmq"
+	"github.com/protengplus/proteng-conductor/internal/validator"
 	"github.com/protengplus/proteng-conductor/repositories"
 
 	ginzap "github.com/gin-contrib/zap"
@@ -20,6 +21,8 @@ func main() {
 	logger.InitZap()
 
 	config.AutomaticLoadEnv()
+
+	validator.Init()
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()

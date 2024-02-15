@@ -23,6 +23,11 @@ type Conductor interface {
 	OrchestrateJob(job *models.Job) error
 	RunJob(job *models.Job) error
 	RunMutation(mutation *models.Mutation) error
+
+	updateJobData(data Data) *models.Job
+	updateMutationData(data Data)
+	getFirstMutation(job *models.Job) (*models.Mutation, error)
+	startPipelineComponent(stageId int, request PipelineRequest) error
 }
 
 func NewConductor(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository) Conductor {

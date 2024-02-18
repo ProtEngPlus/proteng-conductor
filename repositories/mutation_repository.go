@@ -37,6 +37,10 @@ func (mr *mutationRepository) GetAll(query map[string]interface{}) ([]*models.Mu
 
 	if len(query) > 0 {
 		if jobID, ok := query["job_id"]; ok {
+			jobID, err := primitive.ObjectIDFromHex(jobID.(string))
+			if err != nil {
+				return nil, err
+			}
 			filter["job_id"] = jobID
 		}
 	}

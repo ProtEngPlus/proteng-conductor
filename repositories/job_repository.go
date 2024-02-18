@@ -55,7 +55,7 @@ func (jr *jobRepository) GetAll(query map[string]interface{}) ([]*models.Job, er
 		}
 	}
 
-	cursor, err := jr.collection.Find(context.Background(), bson.M{})
+	cursor, err := jr.collection.Find(context.Background(), filter)
 	if err != nil {
 		return nil, err
 	}

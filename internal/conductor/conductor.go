@@ -269,6 +269,7 @@ func (con *conductor) updateMutationData(data Data) {
 }
 
 func (con *conductor) startPipelineComponent(stageId int, request PipelineRequest) error {
+	logger.Debugf("Conductor: startPipelineComponent: %+v", request)
 
 	reqBody, err := json.Marshal(request)
 

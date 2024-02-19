@@ -89,7 +89,14 @@ func (mr *mutationRepository) Create(mutation *models.Mutation) error {
 	mutation.State = enum.MutationStatePending
 	mutation.CreatedAt = time.Now()
 
-	_, err := mr.collection.InsertOne(context.Background(), mutation)
+	thisJobMutations, err := mr.GetAll(bson.M{"job_id": mutation.JobId.Hex()})
+	if err != nil {
+		return err
+	}
+
+	mutation.RunId = len(thisJobMutations) + 1
+
+	_, err = mr.collection.InsertOne(context.Background(), mutation)
 	if err != nil {
 		return err
 	}

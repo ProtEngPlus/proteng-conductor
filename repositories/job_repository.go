@@ -98,6 +98,7 @@ func (jr *jobRepository) Create(job *models.Job) error {
 	job.Id = primitive.NewObjectID()
 	job.State = enum.JobStateCreated
 	job.CreatedAt = time.Now()
+	job.ErrorLogs = []models.ErrLog{}
 
 	_, err := jr.collection.InsertOne(context.Background(), job)
 	if err != nil {

@@ -106,7 +106,7 @@ var Schemas = map[string]string{
             "type": "object",
             "properties": {
                 "temperature": {
-                    "type": "number",
+                    "type": "number"
                 },
                 "num_iterations": {
                     "type": "integer"

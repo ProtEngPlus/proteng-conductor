@@ -11,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 //go:generate mockgen -source=mutation_repository.go -destination=mock_repository/mock_mutation_repository.go -package=mock_repository
@@ -44,8 +45,10 @@ func (mr *mutationRepository) GetAll(query map[string]interface{}) ([]*models.Mu
 			filter["job_id"] = jobID
 		}
 	}
+	options := options.Find()
+	options.SetSort(bson.D{{Key: "run_id", Value: -1}})
 
-	cursor, err := mr.collection.Find(context.Background(), filter)
+	cursor, err := mr.collection.Find(context.Background(), filter, options)
 	if err != nil {
 		return nil, err
 	}

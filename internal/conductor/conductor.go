@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
@@ -26,7 +27,7 @@ type Conductor interface {
 
 	updateJobData(data Data) *models.Job
 	updateMutationData(data Data)
-	getFirstMutation(job *models.Job) (*models.Mutation, error)
+	getCurrentMutation(job *models.Job) (*models.Mutation, error)
 	startPipelineComponent(stageId int, request PipelineRequest) error
 }
 
@@ -95,6 +96,11 @@ func (con *conductor) RunMutation(mutation *models.Mutation) error {
 		logger.Errorf("Conductor: RunMutation: Failed to update mutation job id %s: %v", mutation.JobId.Hex(), err)
 		return err
 	}
+	job.State = enum.JobStateOnGoing
+	if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
+		logger.Errorf("Conductor: RunMutation: Failed to update job %s: %v", job.Id.Hex(), err)
+		return err
+	}
 	reqBodyMap := PipelineRequest{
 		JobId:      mutation.JobId.Hex(),
 		MutationId: mutation.Id.Hex(),
@@ -108,6 +114,10 @@ func (con *conductor) RunMutation(mutation *models.Mutation) error {
 
 	if err != nil {
 		mutation.State = enum.MutationStateFailed
+		if e := con.jobRepository.Update(job.Id.Hex(), job); e != nil {
+			return e
+		}
+		job.State = enum.JobStateFailed
 		if e := con.jobRepository.Update(job.Id.Hex(), job); e != nil {
 			return e
 		}
@@ -131,8 +141,19 @@ func (con *conductor) OrchestrateJob(job *models.Job) error {
 		reqBodyMap.LabResult = job.LabResult
 	}
 	if job.StageId == 3 {
-		mutation, err := con.getFirstMutation(job)
+		mutation, err := con.getCurrentMutation(job)
 		if err != nil {
+			return err
+		}
+		if mutation.State == enum.MutationStateCompleted {
+			job.State = enum.JobStateCompleted
+			if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
+				return err
+			}
+			return nil
+		}
+		mutation.State = enum.MutationStateOnGoing
+		if err := con.mutationRepository.Update(mutation.Id.Hex(), mutation); err != nil {
 			return err
 		}
 		reqBodyMap.MutationId = mutation.Id.Hex()
@@ -145,6 +166,16 @@ func (con *conductor) OrchestrateJob(job *models.Job) error {
 		job.State = enum.JobStateFailed
 		if e := con.jobRepository.Update(job.Id.Hex(), job); e != nil {
 			return e
+		}
+		if job.StageId == 3 {
+			mutation, err := con.mutationRepository.FindById(reqBodyMap.MutationId)
+			if err != nil {
+				return err
+			}
+			mutation.State = enum.MutationStateFailed
+			if e := con.mutationRepository.Update(mutation.Id.Hex(), mutation); e != nil {
+				return e
+			}
 		}
 		con.jobRepository.AddErrorLog(job.Id.Hex(), err.Error())
 		return err
@@ -166,13 +197,8 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	}
 
 	if data.StageID == 3 {
-		job.State = enum.JobStateCompleted
-		if err := con.jobRepository.Update(data.JobID, job); err != nil {
-			logger.Errorf("Conductor: updateJobData: Failed to update job %s : %v", data.JobID, err)
-			return nil
-		}
 		con.updateMutationData(data)
-		return job
+		return nil
 	}
 
 	if data.Status == string(enum.JobStateFailed) {
@@ -214,7 +240,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	return job
 }
 
-func (con *conductor) getFirstMutation(job *models.Job) (*models.Mutation, error) {
+func (con *conductor) getCurrentMutation(job *models.Job) (*models.Mutation, error) {
 	query := map[string]interface{}{
 		"job_id": job.Id.Hex(),
 	}
@@ -235,14 +261,15 @@ func (con *conductor) getFirstMutation(job *models.Job) (*models.Mutation, error
 	} else {
 		mutation = mutations[0]
 	}
-	mutation.State = enum.MutationStateOnGoing
-	if err := con.mutationRepository.Update(mutation.Id.Hex(), mutation); err != nil {
-		return nil, err
-	}
 	return mutation, nil
 }
 
 func (con *conductor) updateMutationData(data Data) {
+	job, err := con.jobRepository.FindById(data.JobID)
+	if err != nil {
+		logger.Errorf("Conductor: updateMutationData: Failed to find job %s: %v", data.JobID, err)
+		return
+	}
 	mutation, err := con.mutationRepository.FindById(data.MutationID)
 	if err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to find mutation %s: %v", data.MutationID, err)
@@ -256,6 +283,11 @@ func (con *conductor) updateMutationData(data Data) {
 			logger.Errorf("Conductor: updateMutationData: Failed to update mutation %s: %v", data.MutationID, err)
 			return
 		}
+		job.State = enum.JobStateFailed
+		if err := con.jobRepository.Update(data.JobID, job); err != nil {
+			logger.Errorf("Conductor: updateMutationData: Failed to update job %s: %v", data.JobID, err)
+			return
+		}
 		con.jobRepository.AddErrorLog(data.JobID, "Mutation error: "+data.Error)
 		return
 	}
@@ -264,6 +296,15 @@ func (con *conductor) updateMutationData(data Data) {
 	mutation.Result = data.MutationResult
 	if err := con.mutationRepository.Update(data.MutationID, mutation); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update mutation %s: %v", data.MutationID, err)
+		return
+	}
+
+	job.State = enum.JobStateCompleted
+	if mutation.RunId == 1 {
+		job.CompleteAt = time.Now()
+	}
+	if err := con.jobRepository.Update(data.JobID, job); err != nil {
+		logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
 		return
 	}
 }

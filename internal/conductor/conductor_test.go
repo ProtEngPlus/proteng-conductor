@@ -40,7 +40,6 @@ func TestConductor_getFirstMutation(t *testing.T) {
 
 		deps.mutationRepository.EXPECT().GetAll(gomock.Any()).Return([]*models.Mutation{}, nil)
 		deps.mutationRepository.EXPECT().Create(gomock.Any()).Return(nil)
-		deps.mutationRepository.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
 		mutation, err := conductor.getCurrentMutation(&testJob)
 		assert.Nil(tt, err)
@@ -57,7 +56,6 @@ func TestConductor_getFirstMutation(t *testing.T) {
 			InputProtein: testJob.InputProtein,
 		}
 		deps.mutationRepository.EXPECT().GetAll(gomock.Any()).Return([]*models.Mutation{existingMutation}, nil)
-		deps.mutationRepository.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
 		mutation, err := conductor.getCurrentMutation(&testJob)
 		assert.Nil(tt, err)

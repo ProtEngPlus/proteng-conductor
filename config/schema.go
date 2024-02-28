@@ -100,4 +100,25 @@ var Schemas = map[string]string{
                 "alpha"
             ]
         }`,
+	"mutation": `
+        {
+            "$schema": "http://json-schema.org/draft-04/schema#",
+            "type": "object",
+            "properties": {
+                "temperature": {
+                    "type": "number",
+                },
+                "num_iterations": {
+                    "type": "integer"
+                },
+                "num_trajectories": {
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "temperature",
+                "num_iterations",
+                "num_trajectories"
+            ]
+        }`,
 }

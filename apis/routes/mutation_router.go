@@ -16,4 +16,5 @@ func MutationRoute(router *gin.Engine, jr repositories.JobRepository, mr reposit
 	router.POST("/mutations", mc.CreateMutation)
 	router.PUT("/mutations/:id", mc.UpdateMutation)
 	router.DELETE("/mutations/:id", mc.DeleteMutation)
+	router.POST("/mutations/:id/run", mc.RunMutation)
 }

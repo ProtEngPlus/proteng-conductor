@@ -119,3 +119,22 @@ func (mc *MutationController) DeleteMutation(c *gin.Context) {
 
 	apiutil.ApiResponseOk(c, nil)
 }
+
+// RunMutation starts/retries a mutation by ID
+func (mc *MutationController) RunMutation(c *gin.Context) {
+	id := c.Param("id")
+
+	mutation, err := mc.mutationRepository.FindById(id)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+		return
+	}
+
+	err = mc.conductor.RunMutation(mutation)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	apiutil.ApiResponseOk(c, mutation)
+}

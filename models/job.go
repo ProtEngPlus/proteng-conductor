@@ -11,7 +11,7 @@ import (
 )
 
 type LabResult struct {
-	Total     int       `bson:"total" json:"total" validate:"required,gte=0"`
+	Total     int       `bson:"total" json:"total" validate:"gte=0"`
 	Sequences []string  `bson:"sequences" json:"sequences" validate:"required"`
 	Scores    []float32 `bson:"scores" json:"scores" validate:"required"`
 }

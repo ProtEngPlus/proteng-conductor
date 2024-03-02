@@ -45,8 +45,17 @@ func (mr *mutationRepository) GetAll(query map[string]interface{}) ([]*models.Mu
 			filter["job_id"] = jobID
 		}
 	}
+
 	options := options.Find()
-	options.SetSort(bson.D{{Key: "run_id", Value: -1}})
+	if sort, ok := query["sort"]; ok {
+		if order, ok := query["order"]; ok {
+			options.SetSort(bson.D{{Key: sort.(string), Value: order.(int)}})
+		} else {
+			options.SetSort(bson.D{{Key: sort.(string), Value: -1}})
+		}
+	} else {
+		options.SetSort(bson.D{{Key: "run_id", Value: -1}})
+	}
 
 	cursor, err := mr.collection.Find(context.Background(), filter, options)
 	if err != nil {

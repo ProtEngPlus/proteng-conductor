@@ -27,6 +27,18 @@ func (mc *MutationController) GetAllMutations(c *gin.Context) {
 	if jobID := c.Query("job_id"); jobID != "" {
 		query["job_id"] = jobID
 	}
+	if sort := c.Query("sort"); sort != "" {
+		query["sort"] = sort
+	}
+	if order := c.Query("order"); order != "" {
+		switch order {
+		case "asc":
+			query["order"] = 1
+		case "desc":
+			query["order"] = -1
+		}
+	}
+
 	mutations, err := mc.mutationRepository.GetAll(query)
 	if err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)

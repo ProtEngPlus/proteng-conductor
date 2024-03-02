@@ -35,6 +35,18 @@ func (jc *JobController) GetAllJobs(c *gin.Context) {
 	if name := c.Query("name"); name != "" {
 		query["name"] = name
 	}
+	if sort := c.Query("sort"); sort != "" {
+		query["sort"] = sort
+	}
+	if order := c.Query("order"); order != "" {
+		switch order {
+		case "asc":
+			query["order"] = 1
+		case "desc":
+			query["order"] = -1
+		}
+	}
+
 	jobs, err := jc.jobRepository.GetAll(query)
 	if err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)

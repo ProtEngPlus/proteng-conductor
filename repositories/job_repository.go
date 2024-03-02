@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 //go:generate mockgen -source=job_repository.go -destination=mock_repository/mock_job_repository.go -package=mock_repository
@@ -55,7 +56,18 @@ func (jr *jobRepository) GetAll(query map[string]interface{}) ([]*models.Job, er
 		}
 	}
 
-	cursor, err := jr.collection.Find(context.Background(), filter)
+	options := options.Find()
+	if sort, ok := query["sort"]; ok {
+		if order, ok := query["order"]; ok {
+			options.SetSort(bson.D{{Key: sort.(string), Value: order.(int)}})
+		} else {
+			options.SetSort(bson.D{{Key: sort.(string), Value: -1}})
+		}
+	} else {
+		options.SetSort(bson.D{{Key: "created_at", Value: -1}})
+	}
+
+	cursor, err := jr.collection.Find(context.Background(), filter, options)
 	if err != nil {
 		return nil, err
 	}

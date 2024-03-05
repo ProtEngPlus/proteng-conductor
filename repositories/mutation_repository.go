@@ -101,12 +101,21 @@ func (mr *mutationRepository) Create(mutation *models.Mutation) error {
 	mutation.State = enum.MutationStatePending
 	mutation.CreatedAt = time.Now()
 
-	thisJobMutations, err := mr.GetAll(bson.M{"job_id": mutation.JobId.Hex()})
+	var sortFilter = bson.M{
+		"job_id": mutation.JobId.Hex(),
+		"sort":   "run_id",
+		"order":  -1,
+	}
+	thisJobMutations, err := mr.GetAll(sortFilter)
 	if err != nil {
 		return err
 	}
 
-	mutation.RunId = len(thisJobMutations) + 1
+	if len(thisJobMutations) == 0 {
+		mutation.RunId = 1
+	} else {
+		mutation.RunId = thisJobMutations[0].RunId + 1
+	}
 
 	_, err = mr.collection.InsertOne(context.Background(), mutation)
 	if err != nil {

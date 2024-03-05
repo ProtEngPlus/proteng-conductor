@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/protengplus/proteng-conductor/apis/routes"
@@ -8,6 +9,7 @@ import (
 	"github.com/protengplus/proteng-conductor/database"
 	"github.com/protengplus/proteng-conductor/internal/conductor"
 	"github.com/protengplus/proteng-conductor/internal/logger"
+	"github.com/protengplus/proteng-conductor/internal/rabbitmq"
 	"github.com/protengplus/proteng-conductor/internal/validator"
 	"github.com/protengplus/proteng-conductor/repositories"
 
@@ -35,19 +37,19 @@ func main() {
 
 	// conductor
 	conductor := conductor.NewConductor(jobRepository, mutationRepository)
-	// rabbitConsumer := rabbitmq.NewConsumer(conductor)
+	rabbitConsumer := rabbitmq.NewConsumer(conductor)
 
-	// rabbitMqUser := config.Config.RabbitMqUser
-	// rabbitMqPassword := config.Config.RabbitMqPassword
-	// rabbitMqHost := config.Config.RabbitMqHost
-	// rabbitMqPort := config.Config.RabbitMqPort
-	// amqpURL := fmt.Sprintf("amqp://%s:%s@%s:%s/", rabbitMqUser, rabbitMqPassword, rabbitMqHost, rabbitMqPort)
-	// go func() {
-	// 	err := rabbitConsumer.RunConsumer(amqpURL, config.Config.JobQueue)
-	// 	if err != nil {
-	// 		logger.Fatalf("Error in RabbitMQ Consumer: %v", err)
-	// 	}
-	// }()
+	rabbitMqUser := config.Config.RabbitMqUser
+	rabbitMqPassword := config.Config.RabbitMqPassword
+	rabbitMqHost := config.Config.RabbitMqHost
+	rabbitMqPort := config.Config.RabbitMqPort
+	amqpURL := fmt.Sprintf("amqp://%s:%s@%s:%s/", rabbitMqUser, rabbitMqPassword, rabbitMqHost, rabbitMqPort)
+	go func() {
+		err := rabbitConsumer.RunConsumer(amqpURL, config.Config.JobQueue)
+		if err != nil {
+			logger.Fatalf("Error in RabbitMQ Consumer: %v", err)
+		}
+	}()
 
 	// logging middleware
 	router.Use(ginzap.GinzapWithConfig(logger.Zap, &ginzap.Config{

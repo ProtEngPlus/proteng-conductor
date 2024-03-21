@@ -12,6 +12,7 @@ func TestValidateLabResult(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		lr := LabResult{
 			Total:     3,
+			Names:     []string{"a", "b", "c"},
 			Sequences: []string{"a", "b", "c"},
 			Scores:    []float32{1.0, 2.0, 3.0},
 		}
@@ -22,6 +23,7 @@ func TestValidateLabResult(t *testing.T) {
 	t.Run("invalid length mismatch", func(t *testing.T) {
 		lr := LabResult{
 			Total:     3,
+			Names:     []string{"a", "b", "c"},
 			Sequences: []string{"a", "b", "c"},
 			Scores:    []float32{1.0, 2.0},
 		}
@@ -32,6 +34,7 @@ func TestValidateLabResult(t *testing.T) {
 	t.Run("invalid total", func(t *testing.T) {
 		lr := LabResult{
 			Total:     2,
+			Names:     []string{"a", "b", "c"},
 			Sequences: []string{"a", "b", "c"},
 			Scores:    []float32{1.0, 2.0, 3.0},
 		}
@@ -48,7 +51,7 @@ func TestValidateJob(t *testing.T) {
 			Name:         "test",
 			StageId:      1,
 			UserId:       "test",
-			LabResult:    LabResult{Total: 3, Sequences: []string{"a", "b", "c"}, Scores: []float32{1.0, 2.0, 3.0}},
+			LabResult:    LabResult{Total: 3, Names: []string{"a", "b", "c"}, Sequences: []string{"a", "b", "c"}, Scores: []float32{1.0, 2.0, 3.0}},
 			Options:      map[string]interface{}{"a": 1},
 			Artifacts:    map[string]Artifact{"a": {BucketName: "test", Path: "test", Url: "test"}},
 			Meta:         []string{"test"},

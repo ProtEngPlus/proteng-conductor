@@ -32,6 +32,9 @@ var Schemas = map[string]string{
                 },
                 "random_state": {
                     "type": "integer"
+                },
+                "hsp_cov": {
+                    "type": "integer"
                 }
             },
             "required": [
@@ -40,7 +43,8 @@ var Schemas = map[string]string{
                 "hitlist_size",
                 "expect",
                 "perc_ident",
-                "random_state"
+                "random_state",
+                "hsp_cov"
             ]
         }`,
 	"unirep": `

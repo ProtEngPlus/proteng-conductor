@@ -44,12 +44,13 @@ func (p *publisher) ensureConnection() error {
 		return p.newConnection()
 	}
 
-	_, err := p.conn.Channel()
+	ch, err := p.conn.Channel()
 	if err != nil {
 		logger.Errorf("Publisher: Failed to open a channel: %v, renewing connection", err)
 		return p.newConnection()
 	}
 
+	ch.Close()
 	return nil
 }
 

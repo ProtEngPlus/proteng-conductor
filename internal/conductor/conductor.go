@@ -2,6 +2,7 @@ package conductor
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
+	rmqPublisher "github.com/protengplus/proteng-conductor/internal/rabbitmq/publisher"
 	"github.com/protengplus/proteng-conductor/models"
 	"github.com/protengplus/proteng-conductor/models/enum"
 	"github.com/protengplus/proteng-conductor/repositories"
@@ -17,6 +19,7 @@ import (
 type conductor struct {
 	jobRepository      repositories.JobRepository
 	mutationRepository repositories.MutationRepository
+	publisher          rmqPublisher.Publisher
 }
 
 type Conductor interface {
@@ -24,14 +27,9 @@ type Conductor interface {
 	OrchestrateJob(job *models.Job) error
 	RunJob(job *models.Job) error
 	RunMutation(mutation *models.Mutation) error
-
-	updateJobData(data Data) *models.Job
-	updateMutationData(data Data)
-	getCurrentMutation(job *models.Job) (*models.Mutation, error)
-	startPipelineComponent(stageId int, request PipelineRequest) error
 }
 
-func NewConductor(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository) Conductor {
+func NewConductor(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository) *conductor {
 	return &conductor{jobRepository: jobRepository, mutationRepository: mutationRepository}
 }
 
@@ -110,7 +108,7 @@ func (con *conductor) RunMutation(mutation *models.Mutation) error {
 		Meta:       job.Meta,
 	}
 
-	err = con.startPipelineComponent(job.StageId, reqBodyMap)
+	err = con.sendJobToPipelineComponent(job.StageId, reqBodyMap)
 
 	if err != nil {
 		mutation.State = enum.MutationStateFailed
@@ -160,7 +158,7 @@ func (con *conductor) OrchestrateJob(job *models.Job) error {
 		reqBodyMap.Config = mutation.Options
 	}
 
-	err := con.startPipelineComponent(job.StageId, reqBodyMap)
+	err := con.sendJobToPipelineComponent(job.StageId, reqBodyMap)
 
 	if err != nil {
 		job.State = enum.JobStateFailed
@@ -309,6 +307,11 @@ func (con *conductor) updateMutationData(data Data) {
 	}
 }
 
+/*
+Deprecated, as we are now using RabbitMQ to trigger the pipeline components.
+
+use sendJobToPipelineComponent instead
+*/
 func (con *conductor) startPipelineComponent(stageId int, request PipelineRequest) error {
 
 	reqBody, err := json.Marshal(request)
@@ -344,6 +347,35 @@ func (con *conductor) startPipelineComponent(stageId int, request PipelineReques
 
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("error: %s", resp.Status)
+	}
+
+	return nil
+}
+
+func (con *conductor) sendJobToPipelineComponent(stageId int, request PipelineRequest) error {
+	ctx := context.Background()
+
+	reqBody, err := json.Marshal(request)
+
+	if err != nil {
+		return err
+	}
+
+	var queueName string
+	switch stageId {
+	case 0:
+		queueName = "run_job.blast"
+	case 1:
+		queueName = "run_job.evotune"
+	case 2:
+		queueName = "run_job.fittop"
+	case 3:
+		queueName = "run_job.mutation"
+	}
+
+	err = con.publisher.PublishDefaultExchange(ctx, queueName, reqBody)
+	if err != nil {
+		return err
 	}
 
 	return nil

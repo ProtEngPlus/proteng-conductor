@@ -9,7 +9,7 @@ import (
 	"github.com/protengplus/proteng-conductor/database"
 	"github.com/protengplus/proteng-conductor/internal/conductor"
 	"github.com/protengplus/proteng-conductor/internal/logger"
-	"github.com/protengplus/proteng-conductor/internal/rabbitmq"
+	rmqConsumer "github.com/protengplus/proteng-conductor/internal/rabbitmq/consumer"
 	"github.com/protengplus/proteng-conductor/internal/validator"
 	"github.com/protengplus/proteng-conductor/repositories"
 
@@ -37,7 +37,7 @@ func main() {
 
 	// conductor
 	conductor := conductor.NewConductor(jobRepository, mutationRepository)
-	rabbitConsumer := rabbitmq.NewConsumer(conductor)
+	rabbitConsumer := rmqConsumer.NewConsumer(conductor)
 
 	rabbitMqUser := config.Config.RabbitMqUser
 	rabbitMqPassword := config.Config.RabbitMqPassword

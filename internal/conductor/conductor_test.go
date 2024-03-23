@@ -63,7 +63,7 @@ func TestConductor_getFirstMutation(t *testing.T) {
 	})
 }
 
-func newTestConductor(t *testing.T) (Conductor, *conductorDependencies, func()) {
+func newTestConductor(t *testing.T) (*conductor, *conductorDependencies, func()) {
 	mockCtrl := gomock.NewController(t)
 
 	deps := &conductorDependencies{

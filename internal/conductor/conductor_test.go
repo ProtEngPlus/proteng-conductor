@@ -3,6 +3,7 @@ package conductor
 import (
 	"testing"
 
+	"github.com/protengplus/proteng-conductor/internal/rabbitmq/publisher/mock_publisher"
 	"github.com/protengplus/proteng-conductor/models"
 	"github.com/protengplus/proteng-conductor/repositories/mock_repository"
 
@@ -10,11 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
-
-type conductorDependencies struct {
-	jobRepository      *mock_repository.MockJobRepository
-	mutationRepository *mock_repository.MockMutationRepository
-}
 
 func TestConductor_getFirstMutation(t *testing.T) {
 	t.Parallel()
@@ -63,17 +59,24 @@ func TestConductor_getFirstMutation(t *testing.T) {
 	})
 }
 
+type conductorDependencies struct {
+	jobRepository      *mock_repository.MockJobRepository
+	mutationRepository *mock_repository.MockMutationRepository
+	publisher          *mock_publisher.MockPublisher
+}
+
 func newTestConductor(t *testing.T) (*conductor, *conductorDependencies, func()) {
 	mockCtrl := gomock.NewController(t)
 
 	deps := &conductorDependencies{
 		jobRepository:      mock_repository.NewMockJobRepository(mockCtrl),
 		mutationRepository: mock_repository.NewMockMutationRepository(mockCtrl),
+		publisher:          mock_publisher.NewMockPublisher(mockCtrl),
 	}
 
 	finish := func() {
 		mockCtrl.Finish()
 	}
 
-	return NewConductor(deps.jobRepository, deps.mutationRepository), deps, finish
+	return NewConductor(deps.jobRepository, deps.mutationRepository, deps.publisher), deps, finish
 }

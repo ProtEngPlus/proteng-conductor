@@ -29,8 +29,16 @@ type Conductor interface {
 	RunMutation(mutation *models.Mutation) error
 }
 
-func NewConductor(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository) *conductor {
-	return &conductor{jobRepository: jobRepository, mutationRepository: mutationRepository}
+func NewConductor(
+	jobRepository repositories.JobRepository,
+	mutationRepository repositories.MutationRepository,
+	publisher rmqPublisher.Publisher,
+) *conductor {
+	return &conductor{
+		jobRepository:      jobRepository,
+		mutationRepository: mutationRepository,
+		publisher:          publisher,
+	}
 }
 
 func (con *conductor) Orchestrate(m string) {

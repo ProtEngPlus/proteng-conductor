@@ -12,12 +12,13 @@ import (
 
 type LabResult struct {
 	Total     int       `bson:"total" json:"total" validate:"gte=0"`
+	Names     []string  `bson:"names" json:"names" validate:"required"`
 	Sequences []string  `bson:"sequences" json:"sequences" validate:"required"`
 	Scores    []float32 `bson:"scores" json:"scores" validate:"required"`
 }
 
 func (lr LabResult) Validate() error {
-	if lr.Total != len(lr.Sequences) || lr.Total != len(lr.Scores) || len(lr.Sequences) != len(lr.Scores) {
+	if lr.Total != len(lr.Sequences) || lr.Total != len(lr.Scores) || lr.Total != len(lr.Names) {
 		return fmt.Errorf("data length mismatch")
 	}
 	return nil
@@ -40,6 +41,7 @@ type Job struct {
 	State        enum.JobState          `bson:"state" json:"state"`
 	StageId      int                    `bson:"stage_id" json:"stage_id" validate:"gte=0,lte=3"`
 	UserId       string                 `bson:"user_id" json:"user_id" validate:"required"`
+	IsFavorite   bool                   `bson:"is_favorite" json:"is_favorite"`
 	LabResult    LabResult              `bson:"lab_result" json:"lab_result"`
 	Options      map[string]interface{} `bson:"options" json:"options" validate:"required"`
 	Artifacts    map[string]Artifact    `bson:"artifact" json:"artifact"`

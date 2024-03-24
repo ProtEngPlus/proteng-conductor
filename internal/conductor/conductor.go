@@ -119,6 +119,7 @@ func (con *conductor) RunMutation(mutation *models.Mutation) error {
 	err = con.sendJobToPipelineComponent(job.StageId, reqBodyMap)
 
 	if err != nil {
+		logger.Errorf("Conductor: RunMutation: Failed to send job to pipeline component: %v", err)
 		mutation.State = enum.MutationStateFailed
 		if e := con.jobRepository.Update(job.Id.Hex(), job); e != nil {
 			return e
@@ -169,6 +170,7 @@ func (con *conductor) OrchestrateJob(job *models.Job) error {
 	err := con.sendJobToPipelineComponent(job.StageId, reqBodyMap)
 
 	if err != nil {
+		logger.Errorf("Conductor: OrchestrateJob: Failed to send job to pipeline component: %v", err)
 		job.State = enum.JobStateFailed
 		if e := con.jobRepository.Update(job.Id.Hex(), job); e != nil {
 			return e
@@ -386,6 +388,7 @@ func (con *conductor) sendJobToPipelineComponent(stageId int, request PipelineRe
 		return err
 	}
 
+	logger.Infof("Conductor: job sent to queue %s", queueName)
 	return nil
 }
 

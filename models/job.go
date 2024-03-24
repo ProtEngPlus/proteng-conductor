@@ -40,6 +40,7 @@ type Job struct {
 	State        enum.JobState          `bson:"state" json:"state"`
 	StageId      int                    `bson:"stage_id" json:"stage_id" validate:"gte=0,lte=3"`
 	UserId       string                 `bson:"user_id" json:"user_id" validate:"required"`
+	IsFavorite   bool                   `bson:"is_favorite" json:"is_favorite"`
 	LabResult    LabResult              `bson:"lab_result" json:"lab_result"`
 	Options      map[string]interface{} `bson:"options" json:"options" validate:"required"`
 	Artifacts    map[string]Artifact    `bson:"artifact" json:"artifact"`

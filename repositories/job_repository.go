@@ -59,12 +59,12 @@ func (jr *jobRepository) GetAll(query map[string]interface{}) ([]*models.Job, er
 	options := options.Find()
 	if sort, ok := query["sort"]; ok {
 		if order, ok := query["order"]; ok {
-			options.SetSort(bson.D{{Key: sort.(string), Value: order.(int)}})
+			options.SetSort(bson.D{{Key: "is_favorite", Value: -1}, {Key: sort.(string), Value: order.(int)}})
 		} else {
-			options.SetSort(bson.D{{Key: sort.(string), Value: -1}})
+			options.SetSort(bson.D{{Key: "is_favorite", Value: -1}, {Key: sort.(string), Value: -1}})
 		}
 	} else {
-		options.SetSort(bson.D{{Key: "created_at", Value: -1}})
+		options.SetSort(bson.D{{Key: "is_favorite", Value: -1}, {Key: "created_at", Value: -1}})
 	}
 
 	cursor, err := jr.collection.Find(context.Background(), filter, options)
@@ -110,6 +110,7 @@ func (jr *jobRepository) Create(job *models.Job) error {
 	job.Id = primitive.NewObjectID()
 	job.State = enum.JobStateCreated
 	job.CreatedAt = time.Now()
+	job.IsFavorite = false
 	job.ErrorLogs = []models.ErrLog{}
 
 	_, err := jr.collection.InsertOne(context.Background(), job)
@@ -132,6 +133,7 @@ func (jr *jobRepository) Update(id string, job *models.Job) error {
 			"name":          job.Name,
 			"state":         string(job.State),
 			"stage_id":      job.StageId,
+			"is_favorite":   job.IsFavorite,
 			"lab_result":    job.LabResult,
 			"options":       job.Options,
 			"artifact":      job.Artifacts,

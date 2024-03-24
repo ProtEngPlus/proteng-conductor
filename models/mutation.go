@@ -10,6 +10,7 @@ import (
 
 type Mutation struct {
 	Id           primitive.ObjectID     `bson:"_id" json:"id"`
+	Name         string                 `bson:"name" json:"name"`
 	JobId        primitive.ObjectID     `bson:"job_id" json:"job_id"`
 	RunId        int                    `bson:"run_id" json:"run_id"`
 	InputProtein string                 `bson:"input_protein" json:"input_protein"`

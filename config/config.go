@@ -28,6 +28,13 @@ type config struct {
 	EvotuneUrl   string `envconfig:"EVOTUNE_URL"`
 	FittopUrl    string `envconfig:"FIT_TOP_URL"`
 	MutationUrl  string `envconfig:"MUTATION_URL"`
+
+	ProjectID    string `envconfig:"PROJECT_ID"`
+	PrivateKeyID string `envconfig:"PRIVATE_KEY_ID"`
+	PrivateKey   string `envconfig:"PRIVATE_KEY"`
+	ClientEmail  string `envconfig:"CLIENT_EMAIL"`
+	ClientID     string `envconfig:"CLIENT_ID"`
+	TokenURI     string `envconfig:"TOKEN_URI"`
 }
 
 func AutomaticLoadEnv() {

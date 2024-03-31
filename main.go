@@ -56,7 +56,7 @@ func main() {
 	}()
 
 	// storage service
-	storageService := storage.NewStorageService("./creds.json")
+	storageService := storage.NewStorageService()
 
 	// logging middleware
 	router.Use(ginzap.GinzapWithConfig(logger.Zap, &ginzap.Config{

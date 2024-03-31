@@ -1,9 +1,8 @@
 package controllers
 
 import (
-	"fmt"
-
 	"github.com/gin-gonic/gin"
+	"github.com/protengplus/proteng-conductor/models"
 	"github.com/protengplus/proteng-conductor/storage"
 	"github.com/protengplus/proteng-conductor/utils/apiutil"
 )
@@ -18,8 +17,8 @@ func NewArtifactController(storageService storage.StorageService) *ArtifactContr
 
 // DownloadArtifact downloads the artifact by bucket and object name
 func (ac *ArtifactController) DownloadArtifact(c *gin.Context) {
-	bucketName := c.Param("bucket")
-	objectName := c.Param("object")
+	bucketName := c.Param("bucketName")
+	objectName := c.Param("objectName")
 
 	// Retrieve artifact content from storage service
 	content, err := ac.storageService.GetObjectContent(bucketName, objectName)
@@ -27,8 +26,14 @@ func (ac *ArtifactController) DownloadArtifact(c *gin.Context) {
 		apiutil.ApiResponseInternalServerError(c, err)
 		return
 	}
-	fmt.Println(content)
 
-	// Serve the artifact
-	apiutil.ApiResponseOk(c, content)
+	// Create an Artifact object with the retrieved content
+	artifact := models.Artifact{
+		BucketName: bucketName,
+		Path:       objectName,
+		Content:    content,
+	}
+
+	// Serve the artifact as the response
+	apiutil.ApiResponseOk(c, artifact)
 }

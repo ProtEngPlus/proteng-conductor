@@ -27,7 +27,8 @@ func (lr LabResult) Validate() error {
 type Artifact struct {
 	BucketName string `bson:"bucket_name" json:"bucket_name"`
 	Path       string `bson:"path" json:"path"`
-	Url        string `bson:"url" json:"url"`
+	Url        string `bson:"url,omitempty" json:"url,omitempty"`
+	Content    []byte `json:"content,omitempty"`
 }
 
 type ErrLog struct {

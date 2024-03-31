@@ -10,5 +10,5 @@ import (
 func ArtifactRoute(router *gin.Engine, ss storage.StorageService) {
 	ac := controllers.NewArtifactController(ss)
 
-	router.GET("/artifact/:bucket/:object", ac.DownloadArtifact)
+	router.GET("/artifact/:bucketName/:objectName", ac.DownloadArtifact)
 }

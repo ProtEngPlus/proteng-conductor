@@ -9,6 +9,8 @@ import (
 	"github.com/protengplus/proteng-conductor/database"
 	"github.com/protengplus/proteng-conductor/internal/conductor"
 	"github.com/protengplus/proteng-conductor/internal/logger"
+	"github.com/protengplus/proteng-conductor/storage"
+
 	rmqConsumer "github.com/protengplus/proteng-conductor/internal/rabbitmq/consumer"
 	rmqPublisher "github.com/protengplus/proteng-conductor/internal/rabbitmq/publisher"
 	"github.com/protengplus/proteng-conductor/internal/validator"
@@ -53,6 +55,9 @@ func main() {
 		}
 	}()
 
+	// storage service
+	storageService := storage.NewStorageService("./creds.json")
+
 	// logging middleware
 	router.Use(ginzap.GinzapWithConfig(logger.Zap, &ginzap.Config{
 		TimeFormat: time.RFC3339,
@@ -68,6 +73,7 @@ func main() {
 	// routes
 	routes.JobRoute(router, jobRepository, conductor)
 	routes.MutationRoute(router, jobRepository, mutationRepository, conductor)
+	routes.ArtifactRoute(router, storageService)
 
 	// panic recovery
 	router.Use(ginzap.RecoveryWithZap(logger.Zap, true))

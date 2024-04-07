@@ -35,6 +35,9 @@ func (jc *JobController) GetAllJobs(c *gin.Context) {
 	if name := c.Query("name"); name != "" {
 		query["name"] = name
 	}
+	if favorite := c.Query("favorite"); favorite != "" {
+		query["favorite"] = favorite
+	}
 	if sort := c.Query("sort"); sort != "" {
 		query["sort"] = sort
 	}

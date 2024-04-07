@@ -54,17 +54,20 @@ func (jr *jobRepository) GetAll(query map[string]interface{}) ([]*models.Job, er
 		if name, ok := query["name"]; ok {
 			filter["$text"] = bson.M{"$search": name}
 		}
+		if favorite, ok := query["favorite"]; ok {
+			filter["is_favorite"] = favorite
+		}
 	}
 
 	options := options.Find()
 	if sort, ok := query["sort"]; ok {
 		if order, ok := query["order"]; ok {
-			options.SetSort(bson.D{{Key: "is_favorite", Value: -1}, {Key: sort.(string), Value: order.(int)}})
+			options.SetSort(bson.D{{Key: sort.(string), Value: order.(int)}})
 		} else {
-			options.SetSort(bson.D{{Key: "is_favorite", Value: -1}, {Key: sort.(string), Value: -1}})
+			options.SetSort(bson.D{{Key: sort.(string), Value: -1}})
 		}
 	} else {
-		options.SetSort(bson.D{{Key: "is_favorite", Value: -1}, {Key: "created_at", Value: -1}})
+		options.SetSort(bson.D{{Key: "created_at", Value: -1}})
 	}
 
 	cursor, err := jr.collection.Find(context.Background(), filter, options)

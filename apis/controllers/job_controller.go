@@ -36,6 +36,11 @@ func (jc *JobController) GetAllJobs(c *gin.Context) {
 		query["name"] = name
 	}
 	if favorite := c.Query("favorite"); favorite != "" {
+		favorite, err := strconv.ParseBool(favorite)
+		if err != nil {
+			apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid favorite value")
+			return
+		}
 		query["favorite"] = favorite
 	}
 	if sort := c.Query("sort"); sort != "" {

@@ -48,14 +48,16 @@ func TestValidateJob(t *testing.T) {
 
 	t.Run("valid", func(t *testing.T) {
 		job := Job{
-			Name:         "test",
-			StageId:      1,
-			UserId:       "test",
-			LabResult:    LabResult{Total: 3, Names: []string{"a", "b", "c"}, Sequences: []string{"a", "b", "c"}, Scores: []float32{1.0, 2.0, 3.0}},
-			Options:      map[string]interface{}{"a": 1},
-			Artifacts:    map[string]Artifact{"a": {BucketName: "test", Path: "test", Url: "test"}},
-			Meta:         []string{"test"},
-			InputProtein: "test",
+			Name:             "test",
+			StageId:          1,
+			UserId:           "test",
+			LabResult:        LabResult{Total: 3, Names: []string{"a", "b", "c"}, Sequences: []string{"a", "b", "c"}, Scores: []float32{1.0, 2.0, 3.0}},
+			Options:          map[string]interface{}{"a": 1},
+			Artifacts:        map[string]Artifact{"a": {BucketName: "test", Path: "test", Url: "test"}},
+			Meta:             []string{"test"},
+			InputProtein:     "test",
+			RunType:          "auto",
+			IsNotificationOn: true,
 		}
 		err := job.Validate(true)
 		assert.Nil(t, err)

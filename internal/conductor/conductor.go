@@ -223,7 +223,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	state, stage_id := getNextStage(*job, data)
 	job.State = state
 
-	if state == enum.JobStateFailed {
+	if state == enum.JobStateFailed && (stage_id != 2 || (stage_id == 2 && job.LabResult.Total != 0)) {
 		logger.Infof("Conductor: updateJobData: Error: Invalid stage")
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
@@ -395,14 +395,23 @@ func (con *conductor) sendJobToPipelineComponent(stageId int, request PipelineRe
 func getNextStage(job models.Job, data Data) (state enum.JobState, stage_id int) {
 	switch data.StageID {
 	case 0:
-		return enum.JobStateOnGoing, 1
+		if job.RunType == "auto" {
+			return enum.JobStateOnGoing, 1
+		}
+		return enum.JobStatePending, 1
 	case 1:
 		if job.LabResult.Total == 0 {
-			return enum.JobStatePending, 2
+			return enum.JobStateFailed, 2
 		}
-		return enum.JobStateOnGoing, 2
+		if job.RunType == "auto" {
+			return enum.JobStateOnGoing, 2
+		}
+		return enum.JobStatePending, 2
 	case 2:
-		return enum.JobStateOnGoing, 3
+		if job.RunType == "auto" {
+			return enum.JobStateOnGoing, 3
+		}
+		return enum.JobStatePending, 3
 	case 3:
 		return enum.JobStateCompleted, 3
 	default:

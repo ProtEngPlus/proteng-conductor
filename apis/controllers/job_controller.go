@@ -15,8 +15,9 @@ import (
 )
 
 type JobController struct {
-	jobRepository repositories.JobRepository
-	conductor     conductor.Conductor
+	jobRepository           repositories.JobRepository
+	conductor               conductor.Conductor
+	configurationRepository repositories.ConfigurationRepository
 }
 
 func NewJobController(jobRepository repositories.JobRepository, conductor conductor.Conductor) *JobController {
@@ -89,46 +90,6 @@ func (jc *JobController) CreateJob(c *gin.Context) {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid job")
 		return
 	}
-
-	err = validateJobOptions(&job)
-	if err != nil {
-		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
-		return
-	}
-
-	err = jc.jobRepository.Create(&job)
-	if err != nil {
-		apiutil.ApiResponseInternalServerError(c, err)
-		return
-	}
-
-	apiutil.ApiResponseOk(c, job)
-}
-
-func (jc *JobController) CreateDuplicateJob(c *gin.Context) {
-	id := c.Param("id")
-	stageId, err := strconv.Atoi(c.Param("stage"))
-	if err != nil || stageId < 0 || stageId > 2 {
-		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid stage id")
-		return
-	}
-	refJob, err := jc.jobRepository.FindById(id)
-	if err != nil {
-		apiutil.ApiResponseNotFound(c, err)
-		return
-	}
-
-	var job models.Job
-	err = c.BindJSON(&job)
-	if err != nil {
-		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
-		return
-	}
-	for i := 0; i <= stageId; i++ {
-		job.Artifacts[refJob.Meta[i]] = refJob.Artifacts[refJob.Meta[i]]
-	}
-	job.RefJobId = refJob.Id
-	job.StageId = stageId + 1
 
 	err = validateJobOptions(&job)
 	if err != nil {
@@ -229,4 +190,58 @@ func validateJobOptions(job *models.Job) error {
 		}
 	}
 	return nil
+}
+
+func validateConfigurationOptions(configuration *models.Configuration) error {
+	for _, service := range configuration.Meta {
+		if _, ok := configuration.Options[service]; !ok {
+			return fmt.Errorf("error: missing options for %s", service)
+		}
+		option := configuration.Options[service]
+		schemaLoader := gojsonschema.NewStringLoader(config.GetSchema(service))
+		optionLoader := gojsonschema.NewGoLoader(option)
+		result, err := gojsonschema.Validate(schemaLoader, optionLoader)
+		if err != nil {
+			return err
+		}
+		if !result.Valid() {
+			return fmt.Errorf(result.Errors()[0].String())
+		}
+	}
+	return nil
+}
+
+func (jc *JobController) CreateConfigurations(c *gin.Context) {
+	var configuration models.Configuration
+	err := c.BindJSON(&configuration)
+	if err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
+		return
+	}
+
+	err = validateConfigurationOptions(&configuration)
+	if err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
+		return
+	}
+
+	err = jc.configurationRepository.Create(&configuration)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	apiutil.ApiResponseOk(c, configuration)
+}
+
+func (jc *JobController) GetAllConfigurations(c *gin.Context) {
+	query := map[string]interface{}{"state": "COMPLETED"}
+
+	configurations, err := jc.configurationRepository.GetAll(query)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	apiutil.ApiResponseOk(c, configurations)
 }

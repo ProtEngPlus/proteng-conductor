@@ -1,0 +1,68 @@
+package repositories
+
+import (
+	"context"
+
+	"github.com/protengplus/proteng-conductor/database"
+	"github.com/protengplus/proteng-conductor/models"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+)
+
+type ConfigurationRepository interface {
+	Create(configuration *models.Configuration) error
+	GetAll(query map[string]interface{}) ([]*models.Configuration, error)
+}
+
+type configurationRepository struct {
+	collection *mongo.Collection
+}
+
+func NewConfigurationRepository() ConfigurationRepository {
+	return &configurationRepository{collection: database.GetCollection("configurations")}
+}
+
+func (cr *configurationRepository) GetAll(query map[string]interface{}) ([]*models.Configuration, error) {
+	var configurations []*models.Configuration
+	filter := bson.M{}
+
+	if len(query) > 0 {
+		if states, ok := query["state"]; ok {
+			filter["state"] = bson.M{"$in": states}
+		}
+	}
+
+	cursor, err := cr.collection.Find(context.Background(), filter)
+	if err != nil {
+		return nil, err
+	}
+
+	defer cursor.Close(context.Background())
+
+	for cursor.Next(context.Background()) {
+		var configuration models.Configuration
+		if err := cursor.Decode(&configuration); err != nil {
+			return nil, err
+		}
+		configurations = append(configurations, &configuration)
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	return configurations, nil
+}
+
+func (cr *configurationRepository) Create(configuration *models.Configuration) error {
+	configuration.Id = primitive.NewObjectID()
+
+	_, err := cr.collection.InsertOne(context.Background(), configuration)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

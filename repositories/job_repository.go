@@ -113,7 +113,6 @@ func (jr *jobRepository) Create(job *models.Job) error {
 	job.Id = primitive.NewObjectID()
 	job.State = enum.JobStateCreated
 	job.CreatedAt = time.Now()
-	job.IsFavorite = false
 	job.ErrorLogs = []models.ErrLog{}
 
 	_, err := jr.collection.InsertOne(context.Background(), job)
@@ -133,17 +132,18 @@ func (jr *jobRepository) Update(id string, job *models.Job) error {
 
 	update := bson.M{
 		"$set": bson.M{
-			"name":          job.Name,
-			"state":         string(job.State),
-			"stage_id":      job.StageId,
-			"is_favorite":   job.IsFavorite,
-			"lab_result":    job.LabResult,
-			"options":       job.Options,
-			"artifact":      job.Artifacts,
-			"meta":          job.Meta,
-			"input_protein": job.InputProtein,
-			"ref_job_id":    job.RefJobId,
-			"complete_at":   job.CompleteAt,
+			"name":               job.Name,
+			"state":              string(job.State),
+			"stage_id":           job.StageId,
+			"lab_result":         job.LabResult,
+			"options":            job.Options,
+			"artifact":           job.Artifacts,
+			"meta":               job.Meta,
+			"input_protein":      job.InputProtein,
+			"run_type":           job.RunType,
+			"description":        job.Description,
+			"is_notification_on": job.IsNotificationOn,
+			"complete_at":        job.CompleteAt,
 		},
 	}
 

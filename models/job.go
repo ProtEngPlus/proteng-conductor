@@ -37,21 +37,37 @@ type ErrLog struct {
 }
 
 type Job struct {
-	Id           primitive.ObjectID     `bson:"_id" json:"id"`
-	Name         string                 `bson:"name" json:"name" validate:"required"`
-	State        enum.JobState          `bson:"state" json:"state"`
-	StageId      int                    `bson:"stage_id" json:"stage_id" validate:"gte=0,lte=3"`
-	UserId       string                 `bson:"user_id" json:"user_id" validate:"required"`
-	IsFavorite   bool                   `bson:"is_favorite" json:"is_favorite"`
-	LabResult    LabResult              `bson:"lab_result" json:"lab_result"`
-	Options      map[string]interface{} `bson:"options" json:"options" validate:"required"`
-	Artifacts    map[string]Artifact    `bson:"artifact" json:"artifact"`
-	Meta         []string               `bson:"meta" json:"meta"`
-	InputProtein string                 `bson:"input_protein" json:"input_protein" validate:"required"`
-	RefJobId     primitive.ObjectID     `bson:"ref_job_id" json:"ref_job_id"`
-	CreatedAt    time.Time              `bson:"created_at" json:"created_at"`
-	CompleteAt   time.Time              `bson:"complete_at" json:"complete_at"`
-	ErrorLogs    []ErrLog               `bson:"error_logs" json:"error_logs"`
+	Id               primitive.ObjectID     `bson:"_id" json:"id"`
+	Name             string                 `bson:"name" json:"name" validate:"required"`
+	State            enum.JobState          `bson:"state" json:"state"`
+	StageId          int                    `bson:"stage_id" json:"stage_id" validate:"gte=0,lte=3"`
+	UserId           string                 `bson:"user_id" json:"user_id" validate:"required"`
+	LabResult        LabResult              `bson:"lab_result" json:"lab_result"`
+	Options          map[string]interface{} `bson:"options" json:"options" validate:"required"`
+	Artifacts        map[string]Artifact    `bson:"artifact" json:"artifact"`
+	Meta             []string               `bson:"meta" json:"meta"`
+	InputProtein     string                 `bson:"input_protein" json:"input_protein" validate:"required"`
+	RunType          string                 `bson:"run_type" json:"run_type" validate:"required"`
+	Description      string                 `bson:"description" json:"description"`
+	IsNotificationOn bool                   `bson:"is_notification_on" json:"is_notification_on" validate:"required"`
+	CreatedAt        time.Time              `bson:"created_at" json:"created_at"`
+	CompleteAt       time.Time              `bson:"complete_at" json:"complete_at"`
+	ErrorLogs        []ErrLog               `bson:"error_logs" json:"error_logs"`
+}
+
+type Configuration struct {
+	Id               primitive.ObjectID     `bson:"_id" json:"id"`
+	JobId            primitive.ObjectID     `bson:"job_id" json:"job_id" validate:"required"`
+	State            enum.JobState          `bson:"state" json:"state"`
+	Name             string                 `bson:"name" json:"name" validate:"required"`
+	UserId           string                 `bson:"user_id" json:"user_id" validate:"required"`
+	LabResult        LabResult              `bson:"lab_result" json:"lab_result"`
+	Options          map[string]interface{} `bson:"options" json:"options" validate:"required"`
+	Artifacts        map[string]Artifact    `bson:"artifact" json:"artifact"`
+	Meta             []string               `bson:"meta" json:"meta"`
+	InputProtein     string                 `bson:"input_protein" json:"input_protein" validate:"required"`
+	RunType          string                 `bson:"run_type" json:"run_type" validate:"required"`
+	IsNotificationOn bool                   `bson:"is_notification_on" json:"is_notification_on" validate:"required"`
 }
 
 func (job Job) Validate(labresult bool) error {

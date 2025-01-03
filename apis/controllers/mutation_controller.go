@@ -38,6 +38,9 @@ func (mc *MutationController) GetAllMutations(c *gin.Context) {
 			query["order"] = -1
 		}
 	}
+	if isBookmark := c.Query("is_bookmark"); isBookmark != "" {
+		query["is_bookmark"] = isBookmark
+	}
 
 	mutations, err := mc.mutationRepository.GetAll(query)
 	if err != nil {
@@ -71,7 +74,7 @@ func (mc *MutationController) CreateMutation(c *gin.Context) {
 
 	job, err := mc.jobRepository.FindById(mutation.JobId.Hex())
 	if err != nil {
-		apiutil.ApiResponseNotFound(c, err)
+		apiutil.ApiResponseNotFound(c, err, "error: job is not found")
 		return
 	}
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+	"strings"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
@@ -116,7 +117,7 @@ func (con *conductor) RunMutation(mutation *models.Mutation) error {
 		Meta:       job.Meta,
 	}
 
-	err = con.sendJobToPipelineComponent(job.StageId, reqBodyMap)
+	err = con.sendJobToPipelineComponent(job.StageId, job.Meta[job.StageId], reqBodyMap)
 
 	if err != nil {
 		logger.Errorf("Conductor: RunMutation: Failed to send job to pipeline component: %v", err)
@@ -167,7 +168,7 @@ func (con *conductor) OrchestrateJob(job *models.Job) error {
 		reqBodyMap.Config = mutation.Options
 	}
 
-	err := con.sendJobToPipelineComponent(job.StageId, reqBodyMap)
+	err := con.sendJobToPipelineComponent(job.StageId, job.Meta[job.StageId], reqBodyMap)
 
 	if err != nil {
 		logger.Errorf("Conductor: OrchestrateJob: Failed to send job to pipeline component: %v", err)
@@ -362,7 +363,7 @@ func (con *conductor) startPipelineComponent(stageId int, request PipelineReques
 	return nil
 }
 
-func (con *conductor) sendJobToPipelineComponent(stageId int, request PipelineRequest) error {
+func (con *conductor) sendJobToPipelineComponent(stageId int, tool string, request PipelineRequest) error {
 	ctx := context.Background()
 
 	reqBody, err := json.Marshal(request)
@@ -371,24 +372,28 @@ func (con *conductor) sendJobToPipelineComponent(stageId int, request PipelineRe
 		return err
 	}
 
-	var queueName string
+	var jobStage string
 	switch stageId {
 	case 0:
-		queueName = "run_job.blast"
+		jobStage = "query"
 	case 1:
-		queueName = "run_job.evotune"
+		jobStage = "evotune"
 	case 2:
-		queueName = "run_job.fittop"
+		jobStage = "fittop"
 	case 3:
-		queueName = "run_job.mutation"
+		jobStage = "mutation"
 	}
 
-	err = con.publisher.PublishDefaultExchange(ctx, queueName, reqBody)
+	routingKey := strings.Join([]string{jobStage, tool}, ".")
+
+	err = con.publisher.PublishWithTopic(ctx, routingKey, reqBody)
+	
 	if err != nil {
 		return err
 	}
 
-	logger.Infof("Conductor: job sent to queue %s", queueName)
+	logger.Infof("Conductor: job sent to exchange with topic %s", routingKey)
+
 	return nil
 }
 

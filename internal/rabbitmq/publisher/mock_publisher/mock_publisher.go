@@ -47,3 +47,17 @@ func (mr *MockPublisherMockRecorder) PublishDefaultExchange(ctx, queueName, body
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublishDefaultExchange", reflect.TypeOf((*MockPublisher)(nil).PublishDefaultExchange), ctx, queueName, body)
 }
+
+// PublishWithTopic mocks base method.
+func (m *MockPublisher) PublishWithTopic(ctx context.Context, routingKey string, body []byte) error {
+    m.ctrl.T.Helper()
+    ret := m.ctrl.Call(m, "PublishWithTopic", ctx, routingKey, body)
+    ret0, _ := ret[0].(error)
+    return ret0
+}
+
+// PublishWithTopic indicates an expected call of PublishWithTopic.
+func (mr *MockPublisherMockRecorder) PublishWithTopic(ctx, routingKey, body interface{}) *gomock.Call {
+    mr.mock.ctrl.T.Helper()
+    return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublishWithTopic", reflect.TypeOf((*MockPublisher)(nil).PublishWithTopic), ctx, routingKey, body)
+}

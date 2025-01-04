@@ -18,6 +18,7 @@ type publisher struct {
 
 type Publisher interface {
 	PublishDefaultExchange(ctx context.Context, queueName string, body []byte) error
+	PublishWithTopic(ctx context.Context, routingKey string, body []byte) error
 }
 
 func NewPublisher() Publisher {
@@ -87,6 +88,47 @@ func (p *publisher) PublishDefaultExchange(ctx context.Context, queueName string
 		amqp.Publishing{
 			ContentType: "text/plain",
 			Body:        body,
+		})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, body []byte)  error{
+	err := p.ensureConnection()
+	if err != nil {
+		return err
+	}
+
+	ch, err := p.conn.Channel()
+	if err != nil {
+		return err
+	}
+	defer ch.Close()
+
+	err = ch.ExchangeDeclare(
+		"logs_topic", // name
+		"topic",      // type
+		false,         // durable
+		false,        // auto-deleted
+		false,        // internal
+		false,        // no-wait
+		nil,          // arguments
+	)
+	if err != nil {
+		return err
+	}
+	
+	err = ch.PublishWithContext(ctx,
+		"logs_topic",          // exchange
+		routingKey, // routing key **change here to tool**
+		false, // mandatory
+		false, // immediate
+		amqp.Publishing{
+				ContentType: "text/plain",
+				Body:        []byte(body),
 		})
 	if err != nil {
 		return err

@@ -9,6 +9,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	models "github.com/protengplus/proteng-conductor/models"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // MockMutationRepository is a mock of MutationRepository interface.
@@ -104,4 +105,19 @@ func (m *MockMutationRepository) Update(id string, mutation *models.Mutation) er
 func (mr *MockMutationRepositoryMockRecorder) Update(id, mutation interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockMutationRepository)(nil).Update), id, mutation)
+}
+
+// FindBestAssayScore mocks base method.
+func (m *MockMutationRepository) FindBestAssayScore(jobIDs []primitive.ObjectID) (*models.BestAssayScore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindBestAssayScore", jobIDs)
+	ret0, _ := ret[0].(*models.BestAssayScore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindBestAssayScore indicates an expected call of FindBestAssayScore.
+func (mr *MockMutationRepositoryMockRecorder) FindBestAssayScore(jobIDs interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindBestAssayScore", reflect.TypeOf((*MockMutationRepository)(nil).FindBestAssayScore), jobIDs)
 }

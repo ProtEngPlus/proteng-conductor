@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/xeipuuv/gojsonschema"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/conductor"
@@ -16,12 +17,13 @@ import (
 
 type JobController struct {
 	jobRepository           repositories.JobRepository
+	mutationRepository      repositories.MutationRepository
 	conductor               conductor.Conductor
 	configurationRepository repositories.ConfigurationRepository
 }
 
-func NewJobController(jobRepository repositories.JobRepository, conductor conductor.Conductor) *JobController {
-	return &JobController{jobRepository: jobRepository, conductor: conductor}
+func NewJobController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, conductor conductor.Conductor) *JobController {
+	return &JobController{jobRepository: jobRepository, mutationRepository: mutationRepository, conductor: conductor}
 }
 
 // GetAllJobs retrieves all jobs
@@ -63,6 +65,63 @@ func (jc *JobController) GetAllJobs(c *gin.Context) {
 	}
 
 	apiutil.ApiResponseOk(c, jobs)
+}
+
+func (jc *JobController) GetJobDashboard(c *gin.Context) {
+	query := map[string]interface{}{}
+	userID := c.Query("user_id")
+	if userID != "" {
+		query["user_id"] = userID
+	} else {
+		err := fmt.Errorf("error: missing user_id")
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: missing user_id")
+		return
+	}
+
+	jobs, err := jc.jobRepository.GetAll(query)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+		return
+	}
+
+	jobIDs := make([]primitive.ObjectID, len(jobs))
+	var numberOfJobs models.NumberOfJobs
+
+	for i, job := range jobs {
+		jobIDs[i] = job.Id
+
+		switch job.State {
+		case "CREATED":
+			numberOfJobs.Created++
+		case "PENDING":
+			numberOfJobs.Pending++
+		case "ONGOING":
+			numberOfJobs.Ongoing++
+		case "COMPLETED":
+			numberOfJobs.Completed++
+		case "FAILED":
+			numberOfJobs.Failed++
+		}
+	}
+
+	bestAssayScore, err := jc.mutationRepository.FindBestAssayScore(jobIDs)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+		return
+	}
+
+	recentJob, err := jc.jobRepository.FindRecent(userID)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+		return
+	}
+
+	var jobDashboard models.DashboardResponseData
+	jobDashboard.NumberOfJobs = numberOfJobs
+	jobDashboard.BestAssayScore = bestAssayScore
+	jobDashboard.RecentJob = recentJob
+
+	apiutil.ApiResponseOk(c, jobDashboard)
 }
 
 // GetJob retrieves a job by ID

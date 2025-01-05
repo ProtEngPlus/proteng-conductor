@@ -17,7 +17,12 @@ type Mutation struct {
 	Options      map[string]interface{} `bson:"options" json:"options"`
 	State        enum.MutationState     `bson:"state" json:"state"`
 	Result       map[string]float32     `bson:"result" json:"result"`
-	IsBookmark   bool 					`bson:"is_bookmark" json:"is_bookmark"`
+	IsBookmark   bool                   `bson:"is_bookmark" json:"is_bookmark"`
 	CreatedAt    time.Time              `bson:"created_at" json:"created_at"`
 	CompleteAt   time.Time              `bson:"complete_at" json:"complete_at"`
+}
+
+type BestAssayScore struct {
+	MutationId primitive.ObjectID `bson:"mutation_id" json:"mutation_id"`
+	AssayScore float64            `bson:"assay_score" json:"assay_score"`
 }

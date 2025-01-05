@@ -20,6 +20,7 @@ import (
 type JobRepository interface {
 	Create(job *models.Job) error
 	FindById(id string) (*models.Job, error)
+	FindRecent(userID string) (*models.RecentJob, error)
 	Update(id string, job *models.Job) error
 	Delete(id string) error
 	GetAll(query map[string]interface{}) ([]*models.Job, error)
@@ -104,6 +105,38 @@ func (jr *jobRepository) FindById(id string) (*models.Job, error) {
 	err = jr.collection.FindOne(context.Background(), filter).Decode(&job)
 	if err != nil {
 		return nil, err
+	}
+
+	return &job, nil
+}
+
+func (jr *jobRepository) FindRecent(userID string) (*models.RecentJob, error) {
+	filter := bson.M{}
+	filter["user_id"] = userID
+
+	options := options.Find()
+	options.SetSort(bson.D{{Key: "created_at", Value: -1}})
+	options.SetLimit(1)
+	options.SetProjection(bson.M{
+		"_id":         1,
+		"name":        1,
+		"description": 1,
+	})
+
+	cursor, err := jr.collection.Find(context.Background(), filter, options)
+	if err != nil {
+		return nil, err
+	}
+
+	defer cursor.Close(context.Background())
+
+	var job models.RecentJob
+	if cursor.Next(context.Background()) {
+		if err := cursor.Decode(&job); err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, nil
 	}
 
 	return &job, nil

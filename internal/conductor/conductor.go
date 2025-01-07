@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
@@ -28,6 +28,7 @@ type Conductor interface {
 	OrchestrateJob(job *models.Job) error
 	RunJob(job *models.Job) error
 	RunMutation(mutation *models.Mutation) error
+	sendJobStatusNotificationEmail(userID string)
 }
 
 func NewConductor(
@@ -52,6 +53,12 @@ func (con *conductor) Orchestrate(m string) {
 
 	// Update job data
 	job := con.updateJobData(payload.Data)
+
+	// Send email notification considering notification settings
+	if job != nil && job.IsNotificationOn && job.State == enum.JobStatePending {
+		con.sendJobStatusNotificationEmail(job.UserId)
+	}
+
 	if job == nil || job.State != enum.JobStateOnGoing {
 		return
 	}
@@ -207,6 +214,10 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 
 	if data.StageID == 3 {
 		con.updateMutationData(data)
+		// Send email notification considering notification settings
+		if job.IsNotificationOn {
+			con.sendJobStatusNotificationEmail(job.UserId)
+		}
 		return nil
 	}
 
@@ -387,7 +398,7 @@ func (con *conductor) sendJobToPipelineComponent(stageId int, tool string, reque
 	routingKey := strings.Join([]string{jobStage, tool}, ".")
 
 	err = con.publisher.PublishWithTopic(ctx, routingKey, reqBody)
-	
+
 	if err != nil {
 		return err
 	}
@@ -422,4 +433,21 @@ func getNextStage(job models.Job, data Data) (state enum.JobState, stage_id int)
 	default:
 		return enum.JobStateFailed, data.StageID
 	}
+}
+
+func (con *conductor) sendJobStatusNotificationEmail(userID string) {
+	ctx := context.Background()
+	reqBody, err := json.Marshal(userID)
+
+	if err != nil {
+		logger.Errorf("Conductor: Error marshal email notification message: %v", err)
+		return
+	}
+
+	err = con.publisher.PublishDefaultExchange(ctx, "job_status_email_notification", reqBody)
+	if err != nil {
+		logger.Errorf("Conductor: Error sending email notification message: %v", err)
+		return
+	}
+	logger.Infof("Conductor: Job status notification sent")
 }

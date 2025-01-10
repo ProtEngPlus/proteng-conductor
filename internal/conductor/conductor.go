@@ -117,7 +117,7 @@ func (con *conductor) RunMutation(mutation *models.Mutation) error {
 		Meta:       job.Meta,
 	}
 
-	err = con.sendJobToPipelineComponent(job.StageId, job.Meta[job.StageId], reqBodyMap)
+	err = con.sendJobToPipelineComponent(job.StageId, mutation.Tool, reqBodyMap)
 
 	if err != nil {
 		logger.Errorf("Conductor: RunMutation: Failed to send job to pipeline component: %v", err)
@@ -263,6 +263,7 @@ func (con *conductor) getCurrentMutation(job *models.Job) (*models.Mutation, err
 			JobId:        job.Id,
 			InputProtein: job.InputProtein,
 			Options:      job.Options[job.Meta[3]].(map[string]interface{}),
+			Tool:		  job.Meta[3],
 		}
 		if err = con.mutationRepository.Create(mutation); err != nil {
 			return nil, err

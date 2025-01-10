@@ -28,7 +28,7 @@ type Conductor interface {
 	OrchestrateJob(job *models.Job) error
 	RunJob(job *models.Job) error
 	RunMutation(mutation *models.Mutation) error
-	sendJobStatusNotificationEmail(userID string)
+	sendJobStatusNotificationEmail(userID string, jobName string, jobState enum.JobState, stageID int, stageName string)
 }
 
 func NewConductor(
@@ -53,11 +53,6 @@ func (con *conductor) Orchestrate(m string) {
 
 	// Update job data
 	job := con.updateJobData(payload.Data)
-
-	// Send email notification considering notification settings
-	if job != nil && job.IsNotificationOn && job.State == enum.JobStatePending {
-		con.sendJobStatusNotificationEmail(job.UserId)
-	}
 
 	if job == nil || job.State != enum.JobStateOnGoing {
 		return
@@ -216,7 +211,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 		con.updateMutationData(data)
 		// Send email notification considering notification settings
 		if job.IsNotificationOn {
-			con.sendJobStatusNotificationEmail(job.UserId)
+			con.sendJobStatusNotificationEmail(job.UserId, job.Name, enum.JobStateCompleted, job.StageId, job.Meta[job.StageId])
 		}
 		return nil
 	}
@@ -224,6 +219,10 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	if data.Status == string(enum.JobStateFailed) {
 		job.State = enum.JobStateFailed
 		logger.Infof("Conductor: updateJobData: Job %s failed %v", data.JobID, data.Error)
+		// Send email notification considering notification settings
+		if job.IsNotificationOn {
+			con.sendJobStatusNotificationEmail(job.UserId, job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
+		}
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 			return nil
@@ -237,6 +236,10 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 
 	if state == enum.JobStateFailed && (stage_id != 2 || (stage_id == 2 && job.LabResult.Total != 0)) {
 		logger.Infof("Conductor: updateJobData: Error: Invalid stage")
+		// Send email notification considering notification settings
+		if job.IsNotificationOn {
+			con.sendJobStatusNotificationEmail(job.UserId, job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
+		}
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 			return nil
@@ -255,6 +258,11 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	if err := con.jobRepository.Update(data.JobID, job); err != nil {
 		logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 		return nil
+	}
+
+	// Send email notification considering notification settings
+	if job.IsNotificationOn && (job.RunType != "auto" || job.State == enum.JobStateFailed) {
+		con.sendJobStatusNotificationEmail(job.UserId, job.Name, job.State, job.StageId, job.Meta[job.StageId])
 	}
 
 	return job
@@ -435,9 +443,17 @@ func getNextStage(job models.Job, data Data) (state enum.JobState, stage_id int)
 	}
 }
 
-func (con *conductor) sendJobStatusNotificationEmail(userID string) {
+func (con *conductor) sendJobStatusNotificationEmail(userID string, jobName string, jobState enum.JobState, stageID int, stageName string) {
 	ctx := context.Background()
-	reqBody, err := json.Marshal(userID)
+
+	message := map[string]string{
+		"user_id":    userID,
+		"job_name":   jobName,
+		"job_state":  string(jobState),
+		"stage_id":   fmt.Sprintf("%d", stageID),
+		"stage_name": stageName,
+	}
+	reqBody, err := json.Marshal(message)
 
 	if err != nil {
 		logger.Errorf("Conductor: Error marshal email notification message: %v", err)

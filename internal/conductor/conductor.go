@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
+	"strings"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
@@ -53,7 +53,6 @@ func (con *conductor) Orchestrate(m string) {
 
 	// Update job data
 	job := con.updateJobData(payload.Data)
-
 	if job == nil || job.State != enum.JobStateOnGoing {
 		return
 	}

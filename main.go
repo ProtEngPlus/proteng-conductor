@@ -74,6 +74,7 @@ func main() {
 	routes.JobRoute(router, jobRepository, conductor)
 	routes.MutationRoute(router, jobRepository, mutationRepository, conductor)
 	routes.ArtifactRoute(router, storageService)
+	routes.UniProtRoute(router, storageService)
 
 	// panic recovery
 	router.Use(ginzap.RecoveryWithZap(logger.Zap, true))

@@ -37,6 +37,7 @@ func main() {
 	}
 	jobRepository := repositories.NewJobRepository()
 	mutationRepository := repositories.NewMutationRepository()
+	configurationRepository := repositories.NewConfigurationRepository()
 
 	// conductor
 	rabbitPublisher := rmqPublisher.NewPublisher()
@@ -71,7 +72,7 @@ func main() {
 	})
 
 	// routes
-	routes.JobRoute(router, jobRepository, mutationRepository, conductor)
+	routes.JobRoute(router, jobRepository, mutationRepository, configurationRepository, conductor)
 	routes.MutationRoute(router, jobRepository, mutationRepository, conductor)
 	routes.ArtifactRoute(router, storageService)
 

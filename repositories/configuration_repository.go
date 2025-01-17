@@ -29,6 +29,9 @@ func (cr *configurationRepository) GetAll(query map[string]interface{}) ([]*mode
 	filter := bson.M{}
 
 	if len(query) > 0 {
+		if userID, ok := query["user_id"]; ok {
+			filter["user_id"] = userID
+		}
 		if states, ok := query["state"]; ok {
 			filter["state"] = bson.M{"$in": states}
 		}

@@ -66,6 +66,7 @@ type Configuration struct {
 	Meta             []string               `bson:"meta" json:"meta"`
 	InputProtein     string                 `bson:"input_protein" json:"input_protein" validate:"required"`
 	RunType          string                 `bson:"run_type" json:"run_type" validate:"required"`
+	Description      string                 `bson:"description" json:"description"`
 	IsNotificationOn bool                   `bson:"is_notification_on" json:"is_notification_on"`
 }
 type NumberOfJobs struct {

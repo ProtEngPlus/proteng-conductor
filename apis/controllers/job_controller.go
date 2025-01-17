@@ -18,12 +18,12 @@ import (
 type JobController struct {
 	jobRepository           repositories.JobRepository
 	mutationRepository      repositories.MutationRepository
-	conductor               conductor.Conductor
 	configurationRepository repositories.ConfigurationRepository
+	conductor               conductor.Conductor
 }
 
-func NewJobController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, conductor conductor.Conductor) *JobController {
-	return &JobController{jobRepository: jobRepository, mutationRepository: mutationRepository, conductor: conductor}
+func NewJobController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, configurationRepository repositories.ConfigurationRepository, conductor conductor.Conductor) *JobController {
+	return &JobController{jobRepository: jobRepository, mutationRepository: mutationRepository, configurationRepository: configurationRepository, conductor: conductor}
 }
 
 // GetAllJobs retrieves all jobs
@@ -294,7 +294,18 @@ func (jc *JobController) CreateConfigurations(c *gin.Context) {
 }
 
 func (jc *JobController) GetAllConfigurations(c *gin.Context) {
-	query := map[string]interface{}{"state": "COMPLETED"}
+	query := map[string]interface{}{}
+	// check if user_id is provided
+	userID := c.Query("user_id")
+	if userID != "" {
+		query["user_id"] = userID
+	} else {
+		err := fmt.Errorf("error: missing user_id")
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: missing user_id")
+		return
+	}
+	// only return configurations with state "COMPLETED"
+	query["state"] = []string{"COMPLETED"}
 
 	configurations, err := jc.configurationRepository.GetAll(query)
 	if err != nil {

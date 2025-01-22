@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 	"strings"
-
+	
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
 	rmqPublisher "github.com/protengplus/proteng-conductor/internal/rabbitmq/publisher"
@@ -263,6 +263,7 @@ func (con *conductor) getCurrentMutation(job *models.Job) (*models.Mutation, err
 			JobId:        job.Id,
 			InputProtein: job.InputProtein,
 			Options:      job.Options[job.Meta[3]].(map[string]interface{}),
+			UserId:       job.UserId,
 		}
 		if err = con.mutationRepository.Create(mutation); err != nil {
 			return nil, err
@@ -387,7 +388,7 @@ func (con *conductor) sendJobToPipelineComponent(stageId int, tool string, reque
 	routingKey := strings.Join([]string{jobStage, tool}, ".")
 
 	err = con.publisher.PublishWithTopic(ctx, routingKey, reqBody)
-	
+
 	if err != nil {
 		return err
 	}

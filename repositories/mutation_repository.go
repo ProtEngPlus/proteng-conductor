@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 	"strconv"
-
+	
 	"github.com/protengplus/proteng-conductor/database"
 	"github.com/protengplus/proteng-conductor/models"
 	"github.com/protengplus/proteng-conductor/models/enum"
@@ -47,12 +47,14 @@ func (mr *mutationRepository) GetAll(query map[string]interface{}) ([]*models.Mu
 		}
 		if isBookmark, ok := query["is_bookmark"]; ok {
 			isBookmark, err := strconv.ParseBool(isBookmark.(string))
-            if err!= nil {
-                return nil, err
-            }
-            filter["is_bookmark"] = isBookmark
+			if err != nil {
+				return nil, err
+			}
+			filter["is_bookmark"] = isBookmark
 		}
-
+		if userID, ok := query["user_id"]; ok {
+			filter["user_id"] = userID
+		}
 	}
 
 	options := options.Find()

@@ -41,6 +41,9 @@ func (mc *MutationController) GetAllMutations(c *gin.Context) {
 	if isBookmark := c.Query("is_bookmark"); isBookmark != "" {
 		query["is_bookmark"] = isBookmark
 	}
+	if userID := c.Query("user_id"); userID != "" {
+		query["user_id"] = userID
+	}
 
 	mutations, err := mc.mutationRepository.GetAll(query)
 	if err != nil {

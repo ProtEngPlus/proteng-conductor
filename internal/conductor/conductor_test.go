@@ -62,6 +62,7 @@ func TestConductor_getFirstMutation(t *testing.T) {
 type conductorDependencies struct {
 	jobRepository      *mock_repository.MockJobRepository
 	mutationRepository *mock_repository.MockMutationRepository
+	queryResultRepository *mock_repository.MockQueryResultRepository
 	publisher          *mock_publisher.MockPublisher
 }
 
@@ -71,6 +72,7 @@ func newTestConductor(t *testing.T) (*conductor, *conductorDependencies, func())
 	deps := &conductorDependencies{
 		jobRepository:      mock_repository.NewMockJobRepository(mockCtrl),
 		mutationRepository: mock_repository.NewMockMutationRepository(mockCtrl),
+		queryResultRepository: mock_repository.NewMockQueryResultRepository(mockCtrl),
 		publisher:          mock_publisher.NewMockPublisher(mockCtrl),
 	}
 
@@ -78,5 +80,5 @@ func newTestConductor(t *testing.T) (*conductor, *conductorDependencies, func())
 		mockCtrl.Finish()
 	}
 
-	return NewConductor(deps.jobRepository, deps.mutationRepository, deps.publisher), deps, finish
+	return NewConductor(deps.jobRepository, deps.mutationRepository, deps.queryResultRepository, deps.publisher), deps, finish
 }

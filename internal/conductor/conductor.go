@@ -308,7 +308,7 @@ func (con *conductor) getCurrentMutation(job *models.Job) (*models.Mutation, err
 
 func (con *conductor) getCurrentQueryResult(job *models.Job) (*models.QueryResult, error) {
 	query := map[string]interface{}{
-		"job_id": job.Id.Hex(),
+		"job_id": job.Id,
 	}
 
 	queryResults, err := con.queryResultRepository.GetAll(query)

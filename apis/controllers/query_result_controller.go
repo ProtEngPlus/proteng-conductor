@@ -23,7 +23,7 @@ func NewQueryResultController(jobRepository repositories.JobRepository, queryRep
 // GetAllQueryResults retrieves all query results
 func (qr *QueryResultController) GetAllQueryResults(c *gin.Context) {
 	query := map[string]interface{}{}
-	if jobID, ok := query["job_id"].(string); ok {
+	if jobID := c.Query("job_id"); jobID != "" {
 		objectID, err := primitive.ObjectIDFromHex(jobID)
 		if err == nil {
 			query["job_id"] = objectID

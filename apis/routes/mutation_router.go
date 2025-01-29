@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func MutationRoute(router *gin.Engine, jr repositories.JobRepository, mr repositories.MutationRepository, con conductor.Conductor) {
-	mc := controllers.NewMutationController(jr, mr, con)
+func MutationRoute(router *gin.Engine, jr repositories.JobRepository, mr repositories.MutationRepository, mrr repositories.MutationResultRepository, con conductor.Conductor) {
+	mc := controllers.NewMutationController(jr, mr, mrr, con)
 
 	router.GET("/mutations", mc.GetAllMutations)
 	router.GET("/mutations/:id", mc.GetMutation)
@@ -17,4 +17,7 @@ func MutationRoute(router *gin.Engine, jr repositories.JobRepository, mr reposit
 	router.PUT("/mutations/:id", mc.UpdateMutation)
 	router.DELETE("/mutations/:id", mc.DeleteMutation)
 	router.POST("/mutations/:id/run", mc.RunMutation)
+
+	router.GET("/mutations/results", mc.GetAllMutationResults)
+	router.PUT("/mutations/results/:result_id", mc.UpdateMutationResult)
 }

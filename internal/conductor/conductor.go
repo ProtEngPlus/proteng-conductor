@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 	"strings"
-	
+	"time"
+
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
 	rmqPublisher "github.com/protengplus/proteng-conductor/internal/rabbitmq/publisher"
@@ -18,9 +18,10 @@ import (
 )
 
 type conductor struct {
-	jobRepository      repositories.JobRepository
-	mutationRepository repositories.MutationRepository
-	publisher          rmqPublisher.Publisher
+	jobRepository            repositories.JobRepository
+	mutationRepository       repositories.MutationRepository
+	mutationResultRepository repositories.MutationResultRepository
+	publisher                rmqPublisher.Publisher
 }
 
 type Conductor interface {
@@ -33,12 +34,14 @@ type Conductor interface {
 func NewConductor(
 	jobRepository repositories.JobRepository,
 	mutationRepository repositories.MutationRepository,
+	mutationResultRepository repositories.MutationResultRepository,
 	publisher rmqPublisher.Publisher,
 ) *conductor {
 	return &conductor{
-		jobRepository:      jobRepository,
-		mutationRepository: mutationRepository,
-		publisher:          publisher,
+		jobRepository:            jobRepository,
+		mutationRepository:       mutationRepository,
+		mutationResultRepository: mutationResultRepository,
+		publisher:                publisher,
 	}
 }
 
@@ -303,7 +306,21 @@ func (con *conductor) updateMutationData(data Data) {
 	}
 
 	mutation.State = enum.MutationStateCompleted
-	mutation.Result = data.MutationResult
+
+	for protein_sequence, assay_score := range data.MutationResult {
+		newMutationResult := &models.MutationResult{
+			MutationId:      mutation.Id,
+			JobId:           job.Id,
+			UserId:          job.UserId,
+			ProteinSequence: protein_sequence,
+			AssayScore:      assay_score,
+			IsBookmark:      false,
+		}
+		if err := con.mutationResultRepository.Create(newMutationResult); err != nil {
+			logger.Errorf("Conductor: updateMutationData: Failed to create new mutation result for mutation %s: %v", data.MutationID, err)
+			return
+		}
+	}
 	if err := con.mutationRepository.Update(data.MutationID, mutation); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update mutation %s: %v", data.MutationID, err)
 		return

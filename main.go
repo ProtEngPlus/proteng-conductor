@@ -37,10 +37,11 @@ func main() {
 	}
 	jobRepository := repositories.NewJobRepository()
 	mutationRepository := repositories.NewMutationRepository()
+	mutationResultRepository := repositories.NewMutationResultRepository()
 
 	// conductor
 	rabbitPublisher := rmqPublisher.NewPublisher()
-	conductor := conductor.NewConductor(jobRepository, mutationRepository, rabbitPublisher)
+	conductor := conductor.NewConductor(jobRepository, mutationRepository, mutationResultRepository, rabbitPublisher)
 	rabbitConsumer := rmqConsumer.NewConsumer(conductor)
 
 	rabbitMqUser := config.Config.RabbitMqUser
@@ -72,7 +73,7 @@ func main() {
 
 	// routes
 	routes.JobRoute(router, jobRepository, conductor)
-	routes.MutationRoute(router, jobRepository, mutationRepository, conductor)
+	routes.MutationRoute(router, jobRepository, mutationRepository, mutationResultRepository, conductor)
 	routes.ArtifactRoute(router, storageService)
 
 	// panic recovery

@@ -2,9 +2,9 @@ package repositories
 
 import (
 	"context"
-	"time"
 	"strconv"
-	
+	"time"
+
 	"github.com/protengplus/proteng-conductor/database"
 	"github.com/protengplus/proteng-conductor/models"
 	"github.com/protengplus/proteng-conductor/models/enum"
@@ -149,7 +149,6 @@ func (mr *mutationRepository) Update(id string, mutation *models.Mutation) error
 			"state":         string(mutation.State),
 			"options":       mutation.Options,
 			"input_protein": mutation.InputProtein,
-			"result":        mutation.Result,
 			"is_bookmark":   mutation.IsBookmark,
 		},
 	}

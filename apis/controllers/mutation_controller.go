@@ -12,13 +12,14 @@ import (
 )
 
 type MutationController struct {
-	jobRepository      repositories.JobRepository
-	mutationRepository repositories.MutationRepository
-	conductor          conductor.Conductor
+	jobRepository            repositories.JobRepository
+	mutationRepository       repositories.MutationRepository
+	mutationResultRepository repositories.MutationResultRepository
+	conductor                conductor.Conductor
 }
 
-func NewMutationController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, conductor conductor.Conductor) *MutationController {
-	return &MutationController{jobRepository: jobRepository, mutationRepository: mutationRepository, conductor: conductor}
+func NewMutationController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, mutationResultRepository repositories.MutationResultRepository, conductor conductor.Conductor) *MutationController {
+	return &MutationController{jobRepository: jobRepository, mutationRepository: mutationRepository, mutationResultRepository: mutationResultRepository, conductor: conductor}
 }
 
 // GetAllMutations retrieves all mutations
@@ -155,4 +156,81 @@ func (mc *MutationController) RunMutation(c *gin.Context) {
 	}
 
 	apiutil.ApiResponseOk(c, mutation)
+}
+
+// GetAllMutationResults retrieves all mutationResults
+func (mc *MutationController) GetAllMutationResults(c *gin.Context) {
+	query := map[string]interface{}{}
+	if mutationID := c.Query("mutation_id"); mutationID != "" {
+		query["mutation_id"] = mutationID
+	}
+	if jobID := c.Query("job_id"); jobID != "" {
+		query["job_id"] = jobID
+	}
+	if sort := c.Query("sort"); sort != "" {
+		query["sort"] = sort
+	}
+	if order := c.Query("order"); order != "" {
+		switch order {
+		case "asc":
+			query["order"] = 1
+		case "desc":
+			query["order"] = -1
+		}
+	}
+	if isBookmark := c.Query("is_bookmark"); isBookmark != "" {
+		query["is_bookmark"] = isBookmark
+	}
+	if minValue := c.Query("min_value"); minValue != "" {
+		query["min_value"] = minValue
+	}
+	if maxValue := c.Query("max_value"); maxValue != "" {
+		query["max_value"] = maxValue
+	}
+
+	mutationResults, err := mc.mutationResultRepository.GetAll(query)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	apiutil.ApiResponseOk(c, mutationResults)
+}
+
+// UpdateMutationResult updates an existing mutationResult
+func (mc *MutationController) UpdateMutationResult(c *gin.Context) {
+	resultId := c.Param("result_id")
+	mutationResult, err := mc.mutationResultRepository.FindById(resultId)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+		return
+	}
+	err = c.BindJSON(&mutationResult)
+	if err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
+		return
+	}
+
+	err = mc.mutationResultRepository.Update(resultId, mutationResult)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	// If the mutation result is bookmarked, update the mutation to be bookmarked
+	if mutationResult.IsBookmark {
+		mutation, err := mc.mutationRepository.FindById(mutationResult.MutationId.Hex())
+		if err != nil {
+			apiutil.ApiResponseNotFound(c, err)
+			return
+		}
+		mutation.IsBookmark = true
+		err = mc.mutationRepository.Update(mutationResult.MutationId.Hex(), mutation)
+		if err != nil {
+			apiutil.ApiResponseInternalServerError(c, err)
+			return
+		}
+	}
+
+	apiutil.ApiResponseOk(c, mutationResult)
 }

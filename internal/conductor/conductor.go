@@ -29,6 +29,7 @@ type Conductor interface {
 	OrchestrateJob(job *models.Job) error
 	RunJob(job *models.Job) error
 	RunMutation(mutation *models.Mutation) error
+	sendJobStatusNotificationEmail(userID string, jobName string, jobState enum.JobState, stageID int, stageName string)
 }
 
 func NewConductor(
@@ -210,12 +211,20 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 
 	if data.StageID == 3 {
 		con.updateMutationData(data)
+		// Send email notification considering notification settings
+		if job.IsNotificationOn {
+			con.sendJobStatusNotificationEmail(job.UserId, job.Name, enum.JobStateCompleted, job.StageId, job.Meta[job.StageId])
+		}
 		return nil
 	}
 
 	if data.Status == string(enum.JobStateFailed) {
 		job.State = enum.JobStateFailed
 		logger.Infof("Conductor: updateJobData: Job %s failed %v", data.JobID, data.Error)
+		// Send email notification considering notification settings
+		if job.IsNotificationOn {
+			con.sendJobStatusNotificationEmail(job.UserId, job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
+		}
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 			return nil
@@ -227,8 +236,12 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	state, stage_id := getNextStage(*job, data)
 	job.State = state
 
-	if state == enum.JobStateFailed {
+	if state == enum.JobStateFailed && (stage_id != 2 || (stage_id == 2 && job.LabResult.Total != 0)) {
 		logger.Infof("Conductor: updateJobData: Error: Invalid stage")
+		// Send email notification considering notification settings
+		if job.IsNotificationOn {
+			con.sendJobStatusNotificationEmail(job.UserId, job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
+		}
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 			return nil
@@ -247,6 +260,11 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	if err := con.jobRepository.Update(data.JobID, job); err != nil {
 		logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 		return nil
+	}
+
+	// Send email notification considering notification settings
+	if job.IsNotificationOn && (job.RunType != "auto" || job.State == enum.JobStateFailed) {
+		con.sendJobStatusNotificationEmail(job.UserId, job.Name, job.State, job.StageId, job.Meta[job.StageId])
 	}
 
 	return job
@@ -418,17 +436,51 @@ func (con *conductor) sendJobToPipelineComponent(stageId int, tool string, reque
 func getNextStage(job models.Job, data Data) (state enum.JobState, stage_id int) {
 	switch data.StageID {
 	case 0:
-		return enum.JobStateOnGoing, 1
+		if job.RunType == "auto" {
+			return enum.JobStateOnGoing, 1
+		}
+		return enum.JobStatePending, 1
 	case 1:
 		if job.LabResult.Total == 0 {
-			return enum.JobStatePending, 2
+			return enum.JobStateFailed, 2
 		}
-		return enum.JobStateOnGoing, 2
+		if job.RunType == "auto" {
+			return enum.JobStateOnGoing, 2
+		}
+		return enum.JobStatePending, 2
 	case 2:
-		return enum.JobStateOnGoing, 3
+		if job.RunType == "auto" {
+			return enum.JobStateOnGoing, 3
+		}
+		return enum.JobStatePending, 3
 	case 3:
 		return enum.JobStateCompleted, 3
 	default:
 		return enum.JobStateFailed, data.StageID
 	}
+}
+
+func (con *conductor) sendJobStatusNotificationEmail(userID string, jobName string, jobState enum.JobState, stageID int, stageName string) {
+	ctx := context.Background()
+
+	message := map[string]string{
+		"user_id":    userID,
+		"job_name":   jobName,
+		"job_state":  string(jobState),
+		"stage_id":   fmt.Sprintf("%d", stageID),
+		"stage_name": stageName,
+	}
+	reqBody, err := json.Marshal(message)
+
+	if err != nil {
+		logger.Errorf("Conductor: Error marshal email notification message: %v", err)
+		return
+	}
+
+	err = con.publisher.PublishDefaultExchange(ctx, "job_status_email_notification", reqBody)
+	if err != nil {
+		logger.Errorf("Conductor: Error sending email notification message: %v", err)
+		return
+	}
+	logger.Infof("Conductor: Job status notification sent")
 }

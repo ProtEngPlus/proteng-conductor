@@ -138,7 +138,7 @@ func (mrr *mutationResultRepository) FindBestResult(userId string) (*models.Best
 	var mutationResult models.MutationResult
 	err := mrr.collection.FindOne(context.Background(), filter, options).Decode(&mutationResult)
 	if err != nil {
-		return nil, err
+		return nil, nil
 	}
 
 	bestAssayScore := models.BestAssayScore{

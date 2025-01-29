@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/xeipuuv/gojsonschema"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/conductor"
@@ -16,14 +15,15 @@ import (
 )
 
 type JobController struct {
-	jobRepository           repositories.JobRepository
-	mutationRepository      repositories.MutationRepository
-	configurationRepository repositories.ConfigurationRepository
-	conductor               conductor.Conductor
+	jobRepository            repositories.JobRepository
+	mutationRepository       repositories.MutationRepository
+	mutationResultRepository repositories.MutationResultRepository
+	configurationRepository  repositories.ConfigurationRepository
+	conductor                conductor.Conductor
 }
 
-func NewJobController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, configurationRepository repositories.ConfigurationRepository, conductor conductor.Conductor) *JobController {
-	return &JobController{jobRepository: jobRepository, mutationRepository: mutationRepository, configurationRepository: configurationRepository, conductor: conductor}
+func NewJobController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, mutationResultRepository repositories.MutationResultRepository, configurationRepository repositories.ConfigurationRepository, conductor conductor.Conductor) *JobController {
+	return &JobController{jobRepository: jobRepository, mutationRepository: mutationRepository, mutationResultRepository: mutationResultRepository, configurationRepository: configurationRepository, conductor: conductor}
 }
 
 // GetAllJobs retrieves all jobs
@@ -84,12 +84,9 @@ func (jc *JobController) GetJobDashboard(c *gin.Context) {
 		return
 	}
 
-	jobIDs := make([]primitive.ObjectID, len(jobs))
 	var numberOfJobs models.NumberOfJobs
 
-	for i, job := range jobs {
-		jobIDs[i] = job.Id
-
+	for _, job := range jobs {
 		switch job.State {
 		case "CREATED":
 			numberOfJobs.Created++
@@ -104,7 +101,7 @@ func (jc *JobController) GetJobDashboard(c *gin.Context) {
 		}
 	}
 
-	bestAssayScore, err := jc.mutationRepository.FindBestAssayScore(jobIDs)
+	bestAssayScore, err := jc.mutationResultRepository.FindBestResult(userID)
 	if err != nil {
 		apiutil.ApiResponseNotFound(c, err)
 		return

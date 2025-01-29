@@ -73,7 +73,7 @@ func main() {
 	})
 
 	// routes
-	routes.JobRoute(router, jobRepository, mutationRepository, configurationRepository, conductor)
+	routes.JobRoute(router, jobRepository, mutationRepository, mutationResultRepository, configurationRepository, conductor)
 	routes.MutationRoute(router, jobRepository, mutationRepository, mutationResultRepository, conductor)
 	routes.ArtifactRoute(router, storageService)
 

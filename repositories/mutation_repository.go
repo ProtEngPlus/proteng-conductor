@@ -20,7 +20,6 @@ import (
 type MutationRepository interface {
 	Create(mutation *models.Mutation) error
 	FindById(id string) (*models.Mutation, error)
-	FindBestAssayScore(jobIDs []primitive.ObjectID) (*models.BestAssayScore, error)
 	Update(id string, mutation *models.Mutation) error
 	Delete(id string) error
 	GetAll(query map[string]interface{}) ([]*models.Mutation, error)
@@ -110,56 +109,6 @@ func (mr *mutationRepository) FindById(id string) (*models.Mutation, error) {
 	}
 
 	return &mutation, nil
-}
-
-func (mr *mutationRepository) FindBestAssayScore(jobIDs []primitive.ObjectID) (*models.BestAssayScore, error) {
-	pipeline := mongo.Pipeline{
-		bson.D{{Key: "$match", Value: bson.D{
-			{Key: "job_id", Value: bson.D{{Key: "$in", Value: jobIDs}}},
-		}}},
-		bson.D{{Key: "$match", Value: bson.D{
-			{Key: "state", Value: "COMPLETED"},
-		}}},
-		bson.D{{Key: "$project", Value: bson.D{
-			{Key: "_id", Value: 1},
-			{Key: "mapResults", Value: bson.D{{Key: "$objectToArray", Value: "$result"}}},
-		}}},
-		bson.D{{Key: "$unwind", Value: "$mapResults"}},
-		bson.D{{Key: "$project", Value: bson.D{
-			{Key: "_id", Value: 1},
-			{Key: "score", Value: "$mapResults.v"},
-		}}},
-		bson.D{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: "$_id"},
-			{Key: "maxScoreInDoc", Value: bson.D{{Key: "$max", Value: "$score"}}},
-		}}},
-		bson.D{{Key: "$sort", Value: bson.D{
-			{Key: "maxScoreInDoc", Value: -1},
-		}}},
-		bson.D{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: 0},
-			{Key: "assay_score", Value: bson.D{{Key: "$first", Value: "$maxScoreInDoc"}}},
-			{Key: "mutation_id", Value: bson.D{{Key: "$first", Value: "$_id"}}},
-		}}},
-	}
-
-	cursor, err := mr.collection.Aggregate(context.Background(), pipeline)
-	if err != nil {
-		return nil, err
-	}
-
-	defer cursor.Close(context.Background())
-
-	var bestAssayScore models.BestAssayScore
-	if cursor.Next(context.Background()) {
-		if err := cursor.Decode(&bestAssayScore); err != nil {
-			return nil, err
-		}
-	} else {
-		return nil, nil
-	}
-
-	return &bestAssayScore, nil
 }
 
 func (mr *mutationRepository) Create(mutation *models.Mutation) error {

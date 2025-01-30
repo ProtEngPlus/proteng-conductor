@@ -20,6 +20,7 @@ import (
 type conductor struct {
 	jobRepository      repositories.JobRepository
 	mutationRepository repositories.MutationRepository
+	queryResultRepository repositories.QueryResultRepository
 	publisher          rmqPublisher.Publisher
 }
 
@@ -33,11 +34,13 @@ type Conductor interface {
 func NewConductor(
 	jobRepository repositories.JobRepository,
 	mutationRepository repositories.MutationRepository,
+	queryResultRepository repositories.QueryResultRepository,
 	publisher rmqPublisher.Publisher,
 ) *conductor {
 	return &conductor{
 		jobRepository:      jobRepository,
 		mutationRepository: mutationRepository,
+		queryResultRepository: queryResultRepository,
 		publisher:          publisher,
 	}
 }
@@ -55,6 +58,7 @@ func (con *conductor) Orchestrate(m string) {
 	if job == nil || job.State != enum.JobStateOnGoing {
 		return
 	}
+	
 
 	// Orchestrate next task
 	err := con.OrchestrateJob(job)
@@ -117,7 +121,7 @@ func (con *conductor) RunMutation(mutation *models.Mutation) error {
 		Meta:       job.Meta,
 	}
 
-	err = con.sendJobToPipelineComponent(job.StageId, job.Meta[job.StageId], reqBodyMap)
+	err = con.sendJobToPipelineComponent(job.StageId, mutation.Tool, reqBodyMap)
 
 	if err != nil {
 		logger.Errorf("Conductor: RunMutation: Failed to send job to pipeline component: %v", err)
@@ -145,6 +149,30 @@ func (con *conductor) OrchestrateJob(job *models.Job) error {
 		Artifact: job.Artifacts,
 		Meta:     job.Meta,
 	}
+	if job.StageId == 0 {
+		query_result, err := con.getCurrentQueryResult(job)
+		if err != nil {
+			return err
+		}
+		if query_result.State == enum.QueryResultStateCompleted {
+			if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
+				return err
+			}
+			return nil
+		}
+		query_result.State = enum.QueryResultStateOnGoing
+		if err := con.queryResultRepository.Update(query_result.Id.Hex(), query_result); err != nil {
+			return err
+		}
+		reqBodyMap.QueryResultId = query_result.Id.Hex()
+	}
+	if job.StageId == 1 {
+		query_result, err := con.getCurrentQueryResult(job)
+		if err != nil {
+			return err
+		}
+        reqBodyMap.QueryResult = query_result.Result
+    }
 	if job.StageId == 2 {
 		reqBodyMap.LabResult = job.LabResult
 	}
@@ -205,6 +233,10 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 		return nil
 	}
 
+	if data.StageID == 0 {
+		con.updateQueryResultData(data)
+	}
+
 	if data.StageID == 3 {
 		con.updateMutationData(data)
 		return nil
@@ -263,6 +295,7 @@ func (con *conductor) getCurrentMutation(job *models.Job) (*models.Mutation, err
 			JobId:        job.Id,
 			InputProtein: job.InputProtein,
 			Options:      job.Options[job.Meta[3]].(map[string]interface{}),
+			Tool:		  job.Meta[3],
 		}
 		if err = con.mutationRepository.Create(mutation); err != nil {
 			return nil, err
@@ -271,6 +304,66 @@ func (con *conductor) getCurrentMutation(job *models.Job) (*models.Mutation, err
 		mutation = mutations[0]
 	}
 	return mutation, nil
+}
+
+func (con *conductor) getCurrentQueryResult(job *models.Job) (*models.QueryResult, error) {
+	query := map[string]interface{}{
+		"job_id": job.Id,
+	}
+
+	queryResults, err := con.queryResultRepository.GetAll(query)
+	if err != nil {
+		return nil, err
+	}
+	queryResult := &models.QueryResult{}
+	if len(queryResults) == 0 {
+		queryResult = &models.QueryResult{
+			JobId: job.Id,
+			InputProtein: job.InputProtein,
+		}
+		if err = con.queryResultRepository.Create(queryResult); err != nil {
+			return nil, err
+		}
+	} else {
+		queryResult = queryResults[0]
+	}
+	return queryResult, nil
+}
+
+func (con *conductor) updateQueryResultData(data Data) {
+	job, err := con.jobRepository.FindById(data.JobID)
+	if (err != nil) {
+		logger.Errorf("Conductor: updateQueryResultData: Failed to find job %s: %v", data.JobID, err)
+		return
+	}
+	query_result, err := con.queryResultRepository.FindById(data.QueryResultId)
+	if err != nil {
+		logger.Errorf("Conductor: updateQueryResultData: Failed to find query result %s: %v", data.QueryResultId, err)
+		return
+	}
+
+	if data.Status == string(enum.JobStateFailed) {
+		query_result.State = enum.QueryResultStateFailed
+		logger.Infof("Conductor: updateQueryResultData: Query Result %s failed: %v", data.JobID, data.Error)
+		if err := con.queryResultRepository.Update(data.QueryResultId, query_result); err != nil {
+			logger.Errorf("Conductor: updateQueryResultData: Failed to update query result %s: %v", data.QueryResultId, err)
+			return
+		}
+		job.State = enum.JobStateFailed
+		if err := con.jobRepository.Update(data.JobID, job); err != nil {
+			logger.Errorf("Conductor: updateQueryResultData: Failed to update job %s: %v", data.JobID, err)
+			return
+		}
+		con.jobRepository.AddErrorLog(data.JobID, "Query Result error: "+data.Error)
+		return
+	}
+
+	query_result.State = enum.QueryResultStateCompleted
+	query_result.Result = data.QueryResult
+	if err := con.queryResultRepository.Update(data.QueryResultId, query_result); err != nil {
+		logger.Errorf("Conductor: updateQueryResultData: Failed to update mutation %s: %v", data.MutationID, err)
+		return
+	}
 }
 
 func (con *conductor) updateMutationData(data Data) {

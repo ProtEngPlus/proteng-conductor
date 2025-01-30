@@ -18,3 +18,12 @@ const (
 	MutationStateCompleted MutationState = "COMPLETED"
 	MutationStateFailed    MutationState = "FAILED"
 )
+
+type QueryResultState string
+
+const (
+	QueryResultStatePending   QueryResultState = "PENDING"
+    QueryResultStateOnGoing   QueryResultState = "ONGOING"
+    QueryResultStateCompleted QueryResultState = "COMPLETED"
+    QueryResultStateFailed    QueryResultState = "FAILED"
+)

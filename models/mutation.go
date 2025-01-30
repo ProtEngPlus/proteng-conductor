@@ -15,6 +15,7 @@ type Mutation struct {
 	RunId        int                    `bson:"run_id" json:"run_id"`
 	InputProtein string                 `bson:"input_protein" json:"input_protein"`
 	Options      map[string]interface{} `bson:"options" json:"options"`
+	Tool	     string 				`bson:"tool" json:"tool"`
 	State        enum.MutationState     `bson:"state" json:"state"`
 	Result       map[string]float32     `bson:"result" json:"result"`
 	IsBookmark   bool 					`bson:"is_bookmark" json:"is_bookmark"`

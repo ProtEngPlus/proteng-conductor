@@ -23,6 +23,10 @@ func (lr LabResult) Validate() error {
 	return nil
 }
 
+type UniProtSequence struct {
+	Sequence string `json:"sequence" validate:"required"`
+}
+
 type Artifact struct {
 	BucketName string `bson:"bucket_name" json:"bucket_name"`
 	Path       string `bson:"path" json:"path"`

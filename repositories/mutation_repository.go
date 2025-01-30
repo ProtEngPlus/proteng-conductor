@@ -152,6 +152,7 @@ func (mr *mutationRepository) Update(id string, mutation *models.Mutation) error
 			"name":          mutation.Name,
 			"state":         string(mutation.State),
 			"options":       mutation.Options,
+			"tool": 		 mutation.Tool,
 			"input_protein": mutation.InputProtein,
 			"is_bookmark":   mutation.IsBookmark,
 		},

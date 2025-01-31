@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
@@ -18,10 +18,11 @@ import (
 )
 
 type conductor struct {
-	jobRepository      repositories.JobRepository
-	mutationRepository repositories.MutationRepository
-	queryResultRepository repositories.QueryResultRepository
-	publisher          rmqPublisher.Publisher
+	jobRepository            repositories.JobRepository
+	mutationRepository       repositories.MutationRepository
+	queryResultRepository    repositories.QueryResultRepository
+	mutationResultRepository repositories.MutationResultRepository
+	publisher                rmqPublisher.Publisher
 }
 
 type Conductor interface {
@@ -29,19 +30,22 @@ type Conductor interface {
 	OrchestrateJob(job *models.Job) error
 	RunJob(job *models.Job) error
 	RunMutation(mutation *models.Mutation) error
+	sendJobStatusNotificationEmail(userID string, jobName string, jobState enum.JobState, stageID int, stageName string)
 }
 
 func NewConductor(
 	jobRepository repositories.JobRepository,
 	mutationRepository repositories.MutationRepository,
 	queryResultRepository repositories.QueryResultRepository,
+	mutationResultRepository repositories.MutationResultRepository,
 	publisher rmqPublisher.Publisher,
 ) *conductor {
 	return &conductor{
-		jobRepository:      jobRepository,
-		mutationRepository: mutationRepository,
-		queryResultRepository: queryResultRepository,
-		publisher:          publisher,
+		jobRepository:            jobRepository,
+		mutationRepository:       mutationRepository,
+		queryResultRepository:    queryResultRepository,
+		mutationResultRepository: mutationResultRepository,
+		publisher:                publisher,
 	}
 }
 
@@ -58,7 +62,6 @@ func (con *conductor) Orchestrate(m string) {
 	if job == nil || job.State != enum.JobStateOnGoing {
 		return
 	}
-	
 
 	// Orchestrate next task
 	err := con.OrchestrateJob(job)
@@ -171,8 +174,8 @@ func (con *conductor) OrchestrateJob(job *models.Job) error {
 		if err != nil {
 			return err
 		}
-        reqBodyMap.QueryResult = query_result.Result
-    }
+		reqBodyMap.QueryResult = query_result.Result
+	}
 	if job.StageId == 2 {
 		reqBodyMap.LabResult = job.LabResult
 	}
@@ -239,12 +242,20 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 
 	if data.StageID == 3 {
 		con.updateMutationData(data)
+		// Send email notification considering notification settings
+		if job.IsNotificationOn {
+			con.sendJobStatusNotificationEmail(job.UserId, job.Name, enum.JobStateCompleted, job.StageId, job.Meta[job.StageId])
+		}
 		return nil
 	}
 
 	if data.Status == string(enum.JobStateFailed) {
 		job.State = enum.JobStateFailed
 		logger.Infof("Conductor: updateJobData: Job %s failed %v", data.JobID, data.Error)
+		// Send email notification considering notification settings
+		if job.IsNotificationOn {
+			con.sendJobStatusNotificationEmail(job.UserId, job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
+		}
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 			return nil
@@ -256,8 +267,12 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	state, stage_id := getNextStage(*job, data)
 	job.State = state
 
-	if state == enum.JobStateFailed {
+	if state == enum.JobStateFailed && (stage_id != 2 || (stage_id == 2 && job.LabResult.Total != 0)) {
 		logger.Infof("Conductor: updateJobData: Error: Invalid stage")
+		// Send email notification considering notification settings
+		if job.IsNotificationOn {
+			con.sendJobStatusNotificationEmail(job.UserId, job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
+		}
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 			return nil
@@ -278,6 +293,11 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 		return nil
 	}
 
+	// Send email notification considering notification settings
+	if job.IsNotificationOn && (job.RunType != "auto" || job.State == enum.JobStateFailed) {
+		con.sendJobStatusNotificationEmail(job.UserId, job.Name, job.State, job.StageId, job.Meta[job.StageId])
+	}
+
 	return job
 }
 
@@ -295,7 +315,8 @@ func (con *conductor) getCurrentMutation(job *models.Job) (*models.Mutation, err
 			JobId:        job.Id,
 			InputProtein: job.InputProtein,
 			Options:      job.Options[job.Meta[3]].(map[string]interface{}),
-			Tool:		  job.Meta[3],
+			Tool:         job.Meta[3],
+			UserId:       job.UserId,
 		}
 		if err = con.mutationRepository.Create(mutation); err != nil {
 			return nil, err
@@ -318,7 +339,7 @@ func (con *conductor) getCurrentQueryResult(job *models.Job) (*models.QueryResul
 	queryResult := &models.QueryResult{}
 	if len(queryResults) == 0 {
 		queryResult = &models.QueryResult{
-			JobId: job.Id,
+			JobId:        job.Id,
 			InputProtein: job.InputProtein,
 		}
 		if err = con.queryResultRepository.Create(queryResult); err != nil {
@@ -332,7 +353,7 @@ func (con *conductor) getCurrentQueryResult(job *models.Job) (*models.QueryResul
 
 func (con *conductor) updateQueryResultData(data Data) {
 	job, err := con.jobRepository.FindById(data.JobID)
-	if (err != nil) {
+	if err != nil {
 		logger.Errorf("Conductor: updateQueryResultData: Failed to find job %s: %v", data.JobID, err)
 		return
 	}
@@ -395,7 +416,21 @@ func (con *conductor) updateMutationData(data Data) {
 	}
 
 	mutation.State = enum.MutationStateCompleted
-	mutation.Result = data.MutationResult
+
+	for protein_sequence, assay_score := range data.MutationResult {
+		newMutationResult := &models.MutationResult{
+			MutationId:      mutation.Id,
+			JobId:           job.Id,
+			UserId:          job.UserId,
+			ProteinSequence: protein_sequence,
+			AssayScore:      assay_score,
+			IsBookmark:      false,
+		}
+		if err := con.mutationResultRepository.Create(newMutationResult); err != nil {
+			logger.Errorf("Conductor: updateMutationData: Failed to create new mutation result for mutation %s: %v", data.MutationID, err)
+			return
+		}
+	}
 	if err := con.mutationRepository.Update(data.MutationID, mutation); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update mutation %s: %v", data.MutationID, err)
 		return
@@ -480,7 +515,7 @@ func (con *conductor) sendJobToPipelineComponent(stageId int, tool string, reque
 	routingKey := strings.Join([]string{jobStage, tool}, ".")
 
 	err = con.publisher.PublishWithTopic(ctx, routingKey, reqBody)
-	
+
 	if err != nil {
 		return err
 	}
@@ -493,17 +528,51 @@ func (con *conductor) sendJobToPipelineComponent(stageId int, tool string, reque
 func getNextStage(job models.Job, data Data) (state enum.JobState, stage_id int) {
 	switch data.StageID {
 	case 0:
-		return enum.JobStateOnGoing, 1
+		if job.RunType == "auto" {
+			return enum.JobStateOnGoing, 1
+		}
+		return enum.JobStatePending, 1
 	case 1:
 		if job.LabResult.Total == 0 {
-			return enum.JobStatePending, 2
+			return enum.JobStateFailed, 2
 		}
-		return enum.JobStateOnGoing, 2
+		if job.RunType == "auto" {
+			return enum.JobStateOnGoing, 2
+		}
+		return enum.JobStatePending, 2
 	case 2:
-		return enum.JobStateOnGoing, 3
+		if job.RunType == "auto" {
+			return enum.JobStateOnGoing, 3
+		}
+		return enum.JobStatePending, 3
 	case 3:
 		return enum.JobStateCompleted, 3
 	default:
 		return enum.JobStateFailed, data.StageID
 	}
+}
+
+func (con *conductor) sendJobStatusNotificationEmail(userID string, jobName string, jobState enum.JobState, stageID int, stageName string) {
+	ctx := context.Background()
+
+	message := map[string]string{
+		"user_id":    userID,
+		"job_name":   jobName,
+		"job_state":  string(jobState),
+		"stage_id":   fmt.Sprintf("%d", stageID),
+		"stage_name": stageName,
+	}
+	reqBody, err := json.Marshal(message)
+
+	if err != nil {
+		logger.Errorf("Conductor: Error marshal email notification message: %v", err)
+		return
+	}
+
+	err = con.publisher.PublishDefaultExchange(ctx, "job_status_email_notification", reqBody)
+	if err != nil {
+		logger.Errorf("Conductor: Error sending email notification message: %v", err)
+		return
+	}
+	logger.Infof("Conductor: Job status notification sent")
 }

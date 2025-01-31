@@ -2,8 +2,8 @@ package repositories
 
 import (
 	"context"
-	"time"
 	"strconv"
+	"time"
 
 	"github.com/protengplus/proteng-conductor/database"
 	"github.com/protengplus/proteng-conductor/models"
@@ -47,12 +47,18 @@ func (mr *mutationRepository) GetAll(query map[string]interface{}) ([]*models.Mu
 		}
 		if isBookmark, ok := query["is_bookmark"]; ok {
 			isBookmark, err := strconv.ParseBool(isBookmark.(string))
-            if err!= nil {
-                return nil, err
-            }
-            filter["is_bookmark"] = isBookmark
+			if err != nil {
+				return nil, err
+			}
+			filter["is_bookmark"] = isBookmark
+			if err != nil {
+				return nil, err
+			}
+			filter["is_bookmark"] = isBookmark
 		}
-
+		if userID, ok := query["user_id"]; ok {
+			filter["user_id"] = userID
+		}
 	}
 
 	options := options.Find()
@@ -148,7 +154,6 @@ func (mr *mutationRepository) Update(id string, mutation *models.Mutation) error
 			"options":       mutation.Options,
 			"tool": 		 mutation.Tool,
 			"input_protein": mutation.InputProtein,
-			"result":        mutation.Result,
 			"is_bookmark":   mutation.IsBookmark,
 		},
 	}

@@ -45,6 +45,7 @@ type Job struct {
 	State            enum.JobState          `bson:"state" json:"state"`
 	StageId          int                    `bson:"stage_id" json:"stage_id" validate:"gte=0,lte=3"`
 	UserId           string                 `bson:"user_id" json:"user_id" validate:"required"`
+	RefJobId         primitive.ObjectID     `bson:"ref_job_id" json:"ref_job_id"`
 	LabResult        LabResult              `bson:"lab_result" json:"lab_result" validate:"omitempty"`
 	Options          map[string]interface{} `bson:"options" json:"options" validate:"required"`
 	Artifacts        map[string]Artifact    `bson:"artifact" json:"artifact"`
@@ -60,8 +61,9 @@ type Job struct {
 
 type Configuration struct {
 	Id               primitive.ObjectID     `bson:"_id" json:"id"`
-	JobId            primitive.ObjectID     `bson:"job_id" json:"job_id" validate:"required"`
+	RefJobId         primitive.ObjectID     `bson:"ref_job_id" json:"ref_job_id" validate:"required"`
 	State            enum.JobState          `bson:"state" json:"state"`
+	StageId          int                    `bson:"stage_id" json:"stage_id" validate:"gte=0,lte=3"`
 	Name             string                 `bson:"name" json:"name" validate:"required"`
 	UserId           string                 `bson:"user_id" json:"user_id" validate:"required"`
 	LabResult        LabResult              `bson:"lab_result" json:"lab_result"`

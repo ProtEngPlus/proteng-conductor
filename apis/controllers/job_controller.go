@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/xeipuuv/gojsonschema"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/conductor"
@@ -19,11 +20,12 @@ type JobController struct {
 	mutationRepository       repositories.MutationRepository
 	mutationResultRepository repositories.MutationResultRepository
 	configurationRepository  repositories.ConfigurationRepository
+	queryResultRepository    repositories.QueryResultRepository
 	conductor                conductor.Conductor
 }
 
-func NewJobController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, mutationResultRepository repositories.MutationResultRepository, configurationRepository repositories.ConfigurationRepository, conductor conductor.Conductor) *JobController {
-	return &JobController{jobRepository: jobRepository, mutationRepository: mutationRepository, mutationResultRepository: mutationResultRepository, configurationRepository: configurationRepository, conductor: conductor}
+func NewJobController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, mutationResultRepository repositories.MutationResultRepository, configurationRepository repositories.ConfigurationRepository, queryResultRepository repositories.QueryResultRepository, conductor conductor.Conductor) *JobController {
+	return &JobController{jobRepository: jobRepository, mutationRepository: mutationRepository, mutationResultRepository: mutationResultRepository, configurationRepository: configurationRepository, queryResultRepository: queryResultRepository, conductor: conductor}
 }
 
 // GetAllJobs retrieves all jobs
@@ -157,6 +159,33 @@ func (jc *JobController) CreateJob(c *gin.Context) {
 	if err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)
 		return
+	}
+
+	// Check if job is created with configuration, then duplicate the query result
+	if job.RefJobId != primitive.NilObjectID && job.StageId > 0 {
+		query := map[string]interface{}{
+			"job_id": job.RefJobId,
+		}
+
+		queryResults, err := jc.queryResultRepository.GetAll(query)
+		if err != nil {
+			apiutil.ApiResponseInternalServerError(c, err)
+			return
+		}
+		queryResult := &models.QueryResult{}
+		if len(queryResults) == 0 {
+			queryResult = &models.QueryResult{
+				JobId:        job.Id,
+				InputProtein: job.InputProtein,
+			}
+		} else {
+			queryResult = queryResults[0]
+			queryResult.JobId = job.Id
+		}
+		if err = jc.queryResultRepository.Create(queryResult); err != nil {
+			apiutil.ApiResponseInternalServerError(c, err)
+			return
+		}
 	}
 
 	apiutil.ApiResponseOk(c, job)

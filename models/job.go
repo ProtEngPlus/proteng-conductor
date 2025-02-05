@@ -34,6 +34,11 @@ type Artifact struct {
 	Content    []byte `json:"content,omitempty"`
 }
 
+type StageRunTime struct {
+	StartTime 	time.Time 		  `bson:"start_time" json:"start_time"`
+	EndTime   	time.Time 		  `bson:"end_time" json:"end_time"`
+}
+
 type ErrLog struct {
 	Content   string    `bson:"content" json:"content"`
 	Timestamp time.Time `bson:"timestamp" json:"timestamp"`
@@ -50,12 +55,14 @@ type Job struct {
 	Options          map[string]interface{} `bson:"options" json:"options" validate:"required"`
 	Artifacts        map[string]Artifact    `bson:"artifact" json:"artifact"`
 	Meta             []string               `bson:"meta" json:"meta"`
+	RunTime			 map[string]StageRunTime`bson:"run_time" json:"run_time"`
 	InputProtein     string                 `bson:"input_protein" json:"input_protein" validate:"required"`
 	RunType          string                 `bson:"run_type" json:"run_type" validate:"required"`
 	Description      string                 `bson:"description" json:"description"`
 	IsNotificationOn bool                   `bson:"is_notification_on" json:"is_notification_on"`
 	CreatedAt        time.Time              `bson:"created_at" json:"created_at"`
 	CompleteAt       time.Time              `bson:"complete_at" json:"complete_at"`
+	UpdatedAt 		 time.Time 				`bson:"updated_at" json:"updated_at"`
 	ErrorLogs        []ErrLog               `bson:"error_logs" json:"error_logs"`
 }
 

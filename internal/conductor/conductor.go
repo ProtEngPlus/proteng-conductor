@@ -416,6 +416,7 @@ func (con *conductor) updateMutationData(data Data) {
 	}
 
 	mutation.State = enum.MutationStateCompleted
+	mutation.CompleteAt = time.Now()
 
 	for protein_sequence, assay_score := range data.MutationResult {
 		newMutationResult := &models.MutationResult{

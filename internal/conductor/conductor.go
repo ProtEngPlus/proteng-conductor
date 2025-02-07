@@ -418,6 +418,7 @@ func (con *conductor) updateMutationData(data Data) {
 	mutation.State = enum.MutationStateCompleted
 	mutation.CompleteAt = time.Now()
 
+	histogramData := [40]int{}
 	for protein_sequence, assay_score := range data.MutationResult {
 		newMutationResult := &models.MutationResult{
 			MutationId:        mutation.Id,
@@ -432,7 +433,19 @@ func (con *conductor) updateMutationData(data Data) {
 			logger.Errorf("Conductor: updateMutationData: Failed to create new mutation result for mutation %s: %v", data.MutationID, err)
 			return
 		}
+		// Update histogram data
+		bin := int(assay_score/0.1) + 20
+		if bin < 0 {
+			bin = 0
+		}
+		if bin >= len(histogramData) {
+			bin = len(histogramData) - 1
+		}
+		histogramData[bin]++
 	}
+
+	mutation.HistogramData = histogramData[:]
+
 	if err := con.mutationRepository.Update(data.MutationID, mutation); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update mutation %s: %v", data.MutationID, err)
 		return

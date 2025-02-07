@@ -12,6 +12,7 @@ func MutationRoute(router *gin.Engine, jr repositories.JobRepository, mr reposit
 	mc := controllers.NewMutationController(jr, mr, mrr, con)
 
 	router.GET("/mutations", mc.GetAllMutations)
+	router.GET("/mutations/histograms", mc.GetMutationHistograms)
 	router.GET("/mutations/:id", mc.GetMutation)
 	router.POST("/mutations", mc.CreateMutation)
 	router.PUT("/mutations/:id", mc.UpdateMutation)

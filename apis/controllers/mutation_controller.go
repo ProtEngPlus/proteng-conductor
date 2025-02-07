@@ -58,6 +58,30 @@ func (mc *MutationController) GetAllMutations(c *gin.Context) {
 	apiutil.ApiResponseOk(c, mutations)
 }
 
+// GetMutationHistograms retrieves histograms from all mutations
+func (mc *MutationController) GetMutationHistograms(c *gin.Context) {
+	query := map[string]interface{}{}
+	if jobID := c.Query("job_id"); jobID != "" {
+		query["job_id"] = jobID
+	}
+
+	mutations, err := mc.mutationRepository.GetAll(query)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	histograms := make([]models.MutationHistogram, 0, len(mutations))
+	for _, mutation := range mutations {
+		histograms = append(histograms, models.MutationHistogram{
+			Name:          mutation.Name,
+			HistogramData: mutation.HistogramData,
+		})
+	}
+
+	apiutil.ApiResponseOk(c, histograms)
+}
+
 // GetMutation retrieves a mutation by ID
 func (mc *MutationController) GetMutation(c *gin.Context) {
 	id := c.Param("id")
@@ -200,7 +224,7 @@ func (mc *MutationController) DownloadMutationResults(c *gin.Context) {
 
 	for _, result := range mutationResults {
 		mutationPositions := strings.Join(result.MutationPositions, ",")
-		record = []string{result.ProteinSequence, mutationPositions, fmt.Sprintf("%.10f", result.AssayScore)}
+		record = []string{result.ProteinSequence, mutationPositions, fmt.Sprintf("%.19f", result.AssayScore)}
 		if err := writer.Write(record); err != nil {
 			apiutil.ApiResponseInternalServerError(c, err)
 			return

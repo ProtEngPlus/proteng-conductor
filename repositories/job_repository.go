@@ -146,6 +146,8 @@ func (jr *jobRepository) Create(job *models.Job) error {
 	job.Id = primitive.NewObjectID()
 	job.State = enum.JobStateCreated
 	job.CreatedAt = time.Now()
+	job.UpdatedAt = time.Now()
+	job.RunTime = make(map[string]models.StageRunTime);
 	job.ErrorLogs = []models.ErrLog{}
 
 	_, err := jr.collection.InsertOne(context.Background(), job)
@@ -172,11 +174,13 @@ func (jr *jobRepository) Update(id string, job *models.Job) error {
 			"options":            job.Options,
 			"artifact":           job.Artifacts,
 			"meta":               job.Meta,
+			"run_time": 		  job.RunTime,
 			"input_protein":      job.InputProtein,
 			"run_type":           job.RunType,
 			"description":        job.Description,
 			"is_notification_on": job.IsNotificationOn,
 			"complete_at":        job.CompleteAt,
+			"updated_at": 		  time.Now(),
 		},
 	}
 

@@ -168,6 +168,7 @@ func (con *conductor) OrchestrateJob(job *models.Job) error {
 			return err
 		}
 		reqBodyMap.QueryResultId = query_result.Id.Hex()
+		job.RunTime["query"] = models.StageRunTime{ StartTime: time.Now(), EndTime: time.Time{} }
 	}
 	if job.StageId == 1 {
 		query_result, err := con.getCurrentQueryResult(job)
@@ -175,9 +176,11 @@ func (con *conductor) OrchestrateJob(job *models.Job) error {
 			return err
 		}
 		reqBodyMap.QueryResult = query_result.Result
+		job.RunTime["evotune"] = models.StageRunTime{ StartTime: time.Now(), EndTime: time.Time{} }
 	}
 	if job.StageId == 2 {
 		reqBodyMap.LabResult = job.LabResult
+		job.RunTime["fittop"] = models.StageRunTime{ StartTime: time.Now(), EndTime: time.Time{} }
 	}
 	if job.StageId == 3 {
 		mutation, err := con.getCurrentMutation(job)
@@ -197,6 +200,12 @@ func (con *conductor) OrchestrateJob(job *models.Job) error {
 		}
 		reqBodyMap.MutationId = mutation.Id.Hex()
 		reqBodyMap.Config = mutation.Options
+		job.RunTime["mutation"] = models.StageRunTime{ StartTime: time.Now(), EndTime: time.Time{} }
+	}
+
+	job.UpdatedAt = time.Now();
+	if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
+		return err
 	}
 
 	err := con.sendJobToPipelineComponent(job.StageId, job.Meta[job.StageId], reqBodyMap)
@@ -238,10 +247,20 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 
 	if data.StageID == 0 {
 		con.updateQueryResultData(data)
+		job.RunTime["query"] = models.StageRunTime{ StartTime: job.RunTime["query"].StartTime, EndTime: time.Now() }
+	}
+
+	if data.StageID == 1 {
+		job.RunTime["evotune"] = models.StageRunTime{ StartTime: job.RunTime["evotune"].StartTime, EndTime: time.Now() }
+	}
+
+	if data.StageID == 2 {
+		job.RunTime["fittop"] = models.StageRunTime{ StartTime: job.RunTime["fittop"].StartTime, EndTime: time.Now() }
 	}
 
 	if data.StageID == 3 {
 		con.updateMutationData(data)
+		job.RunTime["mutation"] = models.StageRunTime{ StartTime: job.RunTime["mutation"].StartTime, EndTime: time.Now() }
 		// Send email notification considering notification settings
 		if job.IsNotificationOn {
 			con.sendJobStatusNotificationEmail(job.UserId, job.Name, enum.JobStateCompleted, job.StageId, job.Meta[job.StageId])

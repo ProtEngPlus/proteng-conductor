@@ -435,21 +435,36 @@ func (con *conductor) updateMutationData(data Data) {
 	}
 
 	mutation.State = enum.MutationStateCompleted
+	mutation.CompleteAt = time.Now()
 
+	histogramData := [40]int{}
 	for protein_sequence, assay_score := range data.MutationResult {
 		newMutationResult := &models.MutationResult{
-			MutationId:      mutation.Id,
-			JobId:           job.Id,
-			UserId:          job.UserId,
-			ProteinSequence: protein_sequence,
-			AssayScore:      assay_score,
-			IsBookmark:      false,
+			MutationId:        mutation.Id,
+			JobId:             job.Id,
+			UserId:            job.UserId,
+			ProteinSequence:   protein_sequence,
+			MutationPositions: findMutationPositions(protein_sequence, mutation.InputProtein),
+			AssayScore:        assay_score,
+			IsBookmark:        false,
 		}
 		if err := con.mutationResultRepository.Create(newMutationResult); err != nil {
 			logger.Errorf("Conductor: updateMutationData: Failed to create new mutation result for mutation %s: %v", data.MutationID, err)
 			return
 		}
+		// Update histogram data
+		bin := int(assay_score/0.1) + 20
+		if bin < 0 {
+			bin = 0
+		}
+		if bin >= len(histogramData) {
+			bin = len(histogramData) - 1
+		}
+		histogramData[bin]++
 	}
+
+	mutation.HistogramData = histogramData[:]
+
 	if err := con.mutationRepository.Update(data.MutationID, mutation); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update mutation %s: %v", data.MutationID, err)
 		return
@@ -594,4 +609,14 @@ func (con *conductor) sendJobStatusNotificationEmail(userID string, jobName stri
 		return
 	}
 	logger.Infof("Conductor: Job status notification sent")
+}
+
+func findMutationPositions(proteinSequence string, inputProtein string) []string {
+	mutationPositions := []string{}
+	for i := 0; i < len(proteinSequence) && i < len(inputProtein); i++ {
+		if proteinSequence[i] != inputProtein[i] {
+			mutationPositions = append(mutationPositions, fmt.Sprintf("%c%d%c", inputProtein[i], i+1, proteinSequence[i]))
+		}
+	}
+	return mutationPositions
 }

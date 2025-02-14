@@ -149,12 +149,14 @@ func (mr *mutationRepository) Update(id string, mutation *models.Mutation) error
 
 	update := bson.M{
 		"$set": bson.M{
-			"name":          mutation.Name,
-			"state":         string(mutation.State),
-			"options":       mutation.Options,
-			"tool": 		 mutation.Tool,
-			"input_protein": mutation.InputProtein,
-			"is_bookmark":   mutation.IsBookmark,
+			"name":           mutation.Name,
+			"state":          string(mutation.State),
+			"options":        mutation.Options,
+			"tool":           mutation.Tool,
+			"input_protein":  mutation.InputProtein,
+			"is_bookmark":    mutation.IsBookmark,
+			"histogram_data": mutation.HistogramData,
+			"complete_at":    mutation.CompleteAt,
 		},
 	}
 

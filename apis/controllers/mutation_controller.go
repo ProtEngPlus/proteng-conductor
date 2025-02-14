@@ -1,7 +1,10 @@
 package controllers
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -53,6 +56,30 @@ func (mc *MutationController) GetAllMutations(c *gin.Context) {
 	}
 
 	apiutil.ApiResponseOk(c, mutations)
+}
+
+// GetMutationHistograms retrieves histograms from all mutations
+func (mc *MutationController) GetMutationHistograms(c *gin.Context) {
+	query := map[string]interface{}{}
+	if jobID := c.Query("job_id"); jobID != "" {
+		query["job_id"] = jobID
+	}
+
+	mutations, err := mc.mutationRepository.GetAll(query)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	histograms := make([]models.MutationHistogram, 0, len(mutations))
+	for _, mutation := range mutations {
+		histograms = append(histograms, models.MutationHistogram{
+			Name:          mutation.Name,
+			HistogramData: mutation.HistogramData,
+		})
+	}
+
+	apiutil.ApiResponseOk(c, histograms)
 }
 
 // GetMutation retrieves a mutation by ID
@@ -156,6 +183,69 @@ func (mc *MutationController) RunMutation(c *gin.Context) {
 	}
 
 	apiutil.ApiResponseOk(c, mutation)
+}
+
+// DownloadMutationResults downloads mutation results by ID
+func (mc *MutationController) DownloadMutationResults(c *gin.Context) {
+	id := c.Param("id")
+
+	mutation, err := mc.mutationRepository.FindById(id)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+		return
+	}
+
+	query := map[string]interface{}{}
+	query["mutation_id"] = id
+	query["sort"] = "assay_score"
+	query["order"] = -1
+
+	mutationResults, err := mc.mutationResultRepository.GetAll(query)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	// Create a CSV file
+	var csvBuffer bytes.Buffer
+	writer := csv.NewWriter(&csvBuffer)
+
+	header := []string{"protein_sequence", "mutation_positions", "assay_score"}
+	if err := writer.Write(header); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	record := []string{mutation.InputProtein, "-", "-"}
+	if err := writer.Write(record); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	for _, result := range mutationResults {
+		mutationPositions := strings.Join(result.MutationPositions, ",")
+		record = []string{result.ProteinSequence, mutationPositions, fmt.Sprintf("%.19f", result.AssayScore)}
+		if err := writer.Write(record); err != nil {
+			apiutil.ApiResponseInternalServerError(c, err)
+			return
+		}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="mutation_results_%s.csv"`, id))
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Status(200)
+	_, err = c.Writer.Write(csvBuffer.Bytes())
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
 }
 
 // GetAllMutationResults retrieves all mutationResults

@@ -1,7 +1,10 @@
 package controllers
 
 import (
+	"bytes"
 	"strconv"
+	"encoding/csv"
+	"fmt"
 	"github.com/gin-gonic/gin"
 
 	"github.com/protengplus/proteng-conductor/internal/conductor"
@@ -69,7 +72,7 @@ func (qr *QueryResultController) GetAllQueryResults(c *gin.Context) {
 
 	query_results, err := qr.queryResultRepository.GetAll(query)
 	if err != nil {
-		apiutil.ApiResponseInternalServerError(c, err)
+		apiutil.ApiResponseNotFound(c, err)
         return
 	}
 
@@ -108,4 +111,69 @@ func (qr *QueryResultController) UpdateQueryResult(c *gin.Context) {
 	}
 
 	apiutil.ApiResponseOk(c, query_result)
+}
+
+// DownloadQueryResult downloads query result by job ID
+func (qr *QueryResultController) DownloadQueryResult(c *gin.Context) {
+	jobID := c.Param("id")
+
+	query := map[string]interface{}{}
+	if jobID := c.Param("id"); jobID != "" {
+		objectID, err := primitive.ObjectIDFromHex(jobID)
+		if err == nil {
+			query["job_id"] = objectID
+		}
+	}
+	query["order"] = -1
+
+	query_results, err := qr.queryResultRepository.GetAll(query)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+        return
+	}
+
+	// Create a CSV file
+	var csvBuffer bytes.Buffer
+	writer := csv.NewWriter(&csvBuffer)
+	
+	header := []string{"description", "organisms", "max_score", "score", "query_cover", "e_values", "percent_identity", "acc_len", "accession"}
+	if err := writer.Write(header); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	for _, result := range query_results[0].Result {
+		record := []string{
+			result.Description, 
+			result.Organisms,
+			fmt.Sprintf("%.10f", result.MaxScore),
+			fmt.Sprintf("%.10f", result.Score),
+            fmt.Sprintf("%.10f", result.QueryCover),
+            fmt.Sprintf("%.10f", result.EValues),
+            fmt.Sprintf("%.10f", result.PercentIdentity),
+            strconv.Itoa(int(result.AccLen)),
+			result.Accession,
+		}
+		if err := writer.Write(record); err != nil {
+			apiutil.ApiResponseInternalServerError(c, err)
+			return
+		}
+	}
+
+	writer.Flush()
+
+	if err := writer.Error(); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="query_results_%s.csv"`, jobID))
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Status(200)
+	_, err = c.Writer.Write(csvBuffer.Bytes())
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
 }

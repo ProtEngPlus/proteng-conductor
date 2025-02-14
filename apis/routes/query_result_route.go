@@ -14,4 +14,5 @@ func QueryResultRoute(router *gin.Engine, jr repositories.JobRepository, qr repo
     router.GET("/query_results", qrs.GetAllQueryResults)
     router.GET("/query_results/:id", qrs.GetQueryResult)
     router.PUT("/query_results/:id", qrs.UpdateQueryResult)
+	router.GET("/query_results/:id/download", qrs.DownloadQueryResult)
 }

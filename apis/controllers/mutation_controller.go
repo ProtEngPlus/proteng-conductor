@@ -73,10 +73,12 @@ func (mc *MutationController) GetMutationHistograms(c *gin.Context) {
 
 	histograms := make([]models.MutationHistogram, 0, len(mutations))
 	for _, mutation := range mutations {
-		histograms = append(histograms, models.MutationHistogram{
-			Name:          mutation.Name,
-			HistogramData: mutation.HistogramData,
-		})
+		if len(mutation.HistogramData) != 0 {
+			histograms = append(histograms, models.MutationHistogram{
+				Name: mutation.Name,
+				Data: mutation.HistogramData,
+			})
+		}
 	}
 
 	apiutil.ApiResponseOk(c, histograms)

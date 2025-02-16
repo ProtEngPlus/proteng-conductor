@@ -36,8 +36,8 @@ type MutationResult struct {
 }
 
 type MutationHistogram struct {
-	Name          string `bson:"name" json:"name"`
-	HistogramData []int  `bson:"histogram_data" json:"histogram_data"`
+	Name string `bson:"name" json:"name"`
+	Data []int  `bson:"data" json:"data"`
 }
 
 type BestAssayScore struct {

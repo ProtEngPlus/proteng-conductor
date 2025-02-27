@@ -115,6 +115,17 @@ func (qr *queryResultRepository) GetAll(query map[string]interface{}) ([]*models
 		}}})
 	}
 	
+	if sortField, ok := query["sort"]; ok && sortField != nil {
+		var order int = 1
+		
+		if orderVal, ok := query["order"]; ok && orderVal != nil {
+			order = orderVal.(int) 
+		}
+	
+		pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{
+			{Key: "result." + sortField.(string), Value: order},
+		}}})
+	}
 
 	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.D{
 		{Key: "job_id", Value: 1},

@@ -55,7 +55,34 @@ func (mc *MutationController) GetAllMutations(c *gin.Context) {
 		return
 	}
 
-	apiutil.ApiResponseOk(c, mutations)
+	// if the query has is_bookmark = true, get jobName from jobId that is kept in each mutation
+	if query["is_bookmark"] == "true" {
+		mutationsWithJobName := make([]models.MutationWithJobName, 0, len(mutations))
+		for _, mutation := range mutations {
+			job, err := mc.jobRepository.FindById(mutation.JobId.Hex())
+			if err != nil {
+				apiutil.ApiResponseNotFound(c, err)
+				return
+			}
+			mutationWithJobName := models.MutationWithJobName{
+				Id:         mutation.Id,
+				Name:       mutation.Name,
+				JobId:      mutation.JobId,
+				JobName:    job.Name,
+				Options:    mutation.Options,
+				Tool:       mutation.Tool,
+				State:      mutation.State,
+				IsBookmark: mutation.IsBookmark,
+				CreatedAt:  mutation.CreatedAt,
+				CompleteAt: mutation.CompleteAt,
+			}
+			mutationsWithJobName = append(mutationsWithJobName, mutationWithJobName)
+
+		}
+		apiutil.ApiResponseOk(c, mutationsWithJobName)
+	} else {
+		apiutil.ApiResponseOk(c, mutations)
+	}
 }
 
 // GetMutationHistograms retrieves histograms from all mutations

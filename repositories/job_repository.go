@@ -55,8 +55,25 @@ func (jr *jobRepository) GetAll(query map[string]interface{}) ([]*models.Job, er
 		if name, ok := query["name"]; ok {
 			filter["$text"] = bson.M{"$search": name}
 		}
-		if favorite, ok := query["favorite"]; ok {
-			filter["is_favorite"] = favorite
+		// Filter min/max date of created_at
+		createdAtFrom, _ := time.Parse(time.RFC3339, "0000-01-01T00:00:00Z")
+		createdAtTo := time.Now()
+		err := error(nil)
+		if createdAtFromStr, ok := query["created_at_from"]; ok {
+			createdAtFrom, err = time.Parse(time.RFC3339, createdAtFromStr.(string))
+			if err != nil {
+				return nil, err
+			}
+		}
+		if createdAtToStr, ok := query["created_at_to"]; ok {
+			createdAtTo, err = time.Parse(time.RFC3339, createdAtToStr.(string))
+			if err != nil {
+				return nil, err
+			}
+		}
+		filter["created_at"] = bson.M{
+			"$gte": primitive.NewDateTimeFromTime(createdAtFrom),
+			"$lte": primitive.NewDateTimeFromTime(createdAtTo),
 		}
 	}
 
@@ -147,7 +164,7 @@ func (jr *jobRepository) Create(job *models.Job) error {
 	job.State = enum.JobStateCreated
 	job.CreatedAt = time.Now()
 	job.UpdatedAt = time.Now()
-	job.RunTime = make(map[string]models.StageRunTime);
+	job.RunTime = make(map[string]models.StageRunTime)
 	job.ErrorLogs = []models.ErrLog{}
 
 	_, err := jr.collection.InsertOne(context.Background(), job)
@@ -174,13 +191,13 @@ func (jr *jobRepository) Update(id string, job *models.Job) error {
 			"options":            job.Options,
 			"artifact":           job.Artifacts,
 			"meta":               job.Meta,
-			"run_time": 		  job.RunTime,
+			"run_time":           job.RunTime,
 			"input_protein":      job.InputProtein,
 			"run_type":           job.RunType,
 			"description":        job.Description,
 			"is_notification_on": job.IsNotificationOn,
 			"complete_at":        job.CompleteAt,
-			"updated_at": 		  time.Now(),
+			"updated_at":         time.Now(),
 		},
 	}
 

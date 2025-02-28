@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/xeipuuv/gojsonschema"
@@ -40,14 +39,6 @@ func (jc *JobController) GetAllJobs(c *gin.Context) {
 	if name := c.Query("name"); name != "" {
 		query["name"] = name
 	}
-	if favorite := c.Query("favorite"); favorite != "" {
-		favorite, err := strconv.ParseBool(favorite)
-		if err != nil {
-			apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid favorite value")
-			return
-		}
-		query["favorite"] = favorite
-	}
 	if sort := c.Query("sort"); sort != "" {
 		query["sort"] = sort
 	}
@@ -58,6 +49,12 @@ func (jc *JobController) GetAllJobs(c *gin.Context) {
 		case "desc":
 			query["order"] = -1
 		}
+	}
+	if createdAtFrom := c.Query("created_at_from"); createdAtFrom != "" {
+		query["created_at_from"] = createdAtFrom
+	}
+	if createdAtTo := c.Query("created_at_to"); createdAtTo != "" {
+		query["created_at_to"] = createdAtTo
 	}
 
 	jobs, err := jc.jobRepository.GetAll(query)

@@ -83,8 +83,8 @@ func (mrr *mutationResultRepository) GetAll(query map[string]interface{}) ([]*mo
 			}
 		}
 		filter[sort.(string)] = bson.M{
-			"$gt": minValue,
-			"$lt": maxValue,
+			"$gte": minValue,
+			"$lte": maxValue,
 		}
 	} else {
 		options.SetSort(bson.D{{Key: "id", Value: -1}})

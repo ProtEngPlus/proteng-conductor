@@ -46,14 +46,15 @@ type BestAssayScore struct {
 }
 
 type MutationWithJobName struct {
-	Id         primitive.ObjectID     `bson:"_id" json:"id"`
-	Name       string                 `bson:"name" json:"name"`
-	JobId      primitive.ObjectID     `bson:"job_id" json:"job_id"`
-	JobName    string                 `bson:"job_name" json:"job_name"`
-	Options    map[string]interface{} `bson:"options" json:"options"`
-	Tool       string                 `bson:"tool" json:"tool"`
-	State      enum.MutationState     `bson:"state" json:"state"`
-	IsBookmark bool                   `bson:"is_bookmark" json:"is_bookmark"`
-	CreatedAt  time.Time              `bson:"created_at" json:"created_at"`
-	CompleteAt time.Time              `bson:"complete_at" json:"complete_at"`
+	Id             primitive.ObjectID     `bson:"_id" json:"id"`
+	Name           string                 `bson:"name" json:"name"`
+	JobId          primitive.ObjectID     `bson:"job_id" json:"job_id"`
+	JobName        string                 `bson:"job_name" json:"job_name"`
+	JobDescription string                 `bson:"job_description" json:"job_description"`
+	Options        map[string]interface{} `bson:"options" json:"options"`
+	Tool           string                 `bson:"tool" json:"tool"`
+	State          enum.MutationState     `bson:"state" json:"state"`
+	IsBookmark     bool                   `bson:"is_bookmark" json:"is_bookmark"`
+	CreatedAt      time.Time              `bson:"created_at" json:"created_at"`
+	CompleteAt     time.Time              `bson:"complete_at" json:"complete_at"`
 }

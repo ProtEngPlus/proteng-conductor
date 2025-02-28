@@ -65,16 +65,17 @@ func (mc *MutationController) GetAllMutations(c *gin.Context) {
 				return
 			}
 			mutationWithJobName := models.MutationWithJobName{
-				Id:         mutation.Id,
-				Name:       mutation.Name,
-				JobId:      mutation.JobId,
-				JobName:    job.Name,
-				Options:    mutation.Options,
-				Tool:       mutation.Tool,
-				State:      mutation.State,
-				IsBookmark: mutation.IsBookmark,
-				CreatedAt:  mutation.CreatedAt,
-				CompleteAt: mutation.CompleteAt,
+				Id:             mutation.Id,
+				Name:           mutation.Name,
+				JobId:          mutation.JobId,
+				JobName:        job.Name,
+				JobDescription: job.Description,
+				Options:        mutation.Options,
+				Tool:           mutation.Tool,
+				State:          mutation.State,
+				IsBookmark:     mutation.IsBookmark,
+				CreatedAt:      mutation.CreatedAt,
+				CompleteAt:     mutation.CompleteAt,
 			}
 			mutationsWithJobName = append(mutationsWithJobName, mutationWithJobName)
 

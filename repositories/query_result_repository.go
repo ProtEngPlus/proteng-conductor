@@ -194,8 +194,11 @@ func (qr *queryResultRepository) FindById(id string) (*models.QueryResult, error
 
 func (qr *queryResultRepository) Create(query_result *models.QueryResult) error {
     query_result.Id = primitive.NewObjectID()
-	query_result.State = enum.QueryResultStatePending
 	query_result.CreatedAt = time.Now()
+	
+	if (query_result.State == "") {
+		query_result.State = enum.QueryResultStatePending
+	}
 
 	var sortFilter = bson.M{
 		"job_id": query_result.JobId.Hex(),

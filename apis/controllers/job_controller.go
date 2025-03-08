@@ -137,12 +137,18 @@ func (jc *JobController) GetJob(c *gin.Context) {
 
 // CreateJob creates a new job
 func (jc *JobController) CreateJob(c *gin.Context) {
-	var job models.Job
-	err := c.BindJSON(&job)
-	if err != nil {
-		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
-		return
-	}
+	var requestBody struct {
+        Job         models.Job         `json:"job" binding:"required"`
+        QueryResult *models.QueryResult `json:"query_result,omitempty"`
+    }
+
+    err := c.BindJSON(&requestBody)
+    if err != nil {
+        apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
+        return
+    }
+
+    job := requestBody.Job
 
 	if err := job.Validate(false); err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid job")
@@ -161,8 +167,15 @@ func (jc *JobController) CreateJob(c *gin.Context) {
 		return
 	}
 
-	// Check if job is created with configuration, then duplicate the query result
-	if job.RefJobId != primitive.NilObjectID && job.StageId > 0 {
+	if requestBody.QueryResult != nil { // Check if job is created with configuration, and have updated query result, then duplicate the query result
+		queryResult := requestBody.QueryResult
+		queryResult.JobId = job.Id
+
+		if err = jc.queryResultRepository.Create(queryResult); err != nil {
+			apiutil.ApiResponseInternalServerError(c, err)
+			return
+		}
+    } else if	job.RefJobId != primitive.NilObjectID && job.StageId > 0 { // Check if job is created with configuration, and no updated query result, then duplicate the query result
 		query := map[string]interface{}{
 			"job_id": job.RefJobId,
 		}

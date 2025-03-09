@@ -229,6 +229,9 @@ func (mc *MutationController) DownloadMutationResults(c *gin.Context) {
 	query["mutation_id"] = id
 	query["sort"] = "assay_score"
 	query["order"] = -1
+	if isBookmark := c.Query("is_bookmark"); isBookmark != "" {
+		query["is_bookmark"] = isBookmark
+	}
 
 	mutationResults, err := mc.mutationResultRepository.GetAll(query)
 	if err != nil {

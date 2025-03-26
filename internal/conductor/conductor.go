@@ -260,7 +260,6 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 
 	if data.StageID == 3 {
 		con.updateMutationData(data)
-		job.RunTime["mutation"] = models.StageRunTime{StartTime: job.RunTime["mutation"].StartTime, EndTime: time.Now()}
 		// Send email notification considering notification settings
 		if job.IsNotificationOn {
 			con.sendJobStatusNotificationEmail(job.UserId, job.Name, enum.JobStateCompleted, job.StageId, job.Meta[job.StageId])
@@ -331,6 +330,7 @@ func (con *conductor) getCurrentMutation(job *models.Job) (*models.Mutation, err
 	mutation := &models.Mutation{}
 	if len(mutations) == 0 {
 		mutation = &models.Mutation{
+			Name:         "Mutation collection",
 			JobId:        job.Id,
 			InputProtein: job.InputProtein,
 			Options:      job.Options[job.Meta[3]].(map[string]interface{}),
@@ -470,6 +470,7 @@ func (con *conductor) updateMutationData(data Data) {
 	if mutation.RunId == 1 {
 		job.CompleteAt = time.Now()
 	}
+	job.RunTime["mutation"] = models.StageRunTime{StartTime: job.RunTime["mutation"].StartTime, EndTime: time.Now()}
 	if err := con.jobRepository.Update(data.JobID, job); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
 		return

@@ -51,6 +51,47 @@ var Schemas = map[string]string{
                 "hsp_cov"
             ]
         }`,
+	"mmseqs2": `
+	    {
+	        "$schema": "http://json-schema.org/draft-04/schema#",
+	        "type": "object",
+	        "properties": {
+	            "max_seqs": {
+	                "type": "integer"
+	            },
+	            "e": {
+	                "type": "number"
+	            },
+	            "min_seq_id": {
+	                "type": "number"
+	            },
+	            "min_aln_len": {
+	                "type": "integer"
+	            },
+	            "cov_mode": {
+	                "type": "integer"
+	            },
+	            "c": {
+	                "type": "number"
+	            },
+	            "seq_length": {
+	                "type": "integer"
+	            },
+                "random_state": {
+                    "type": "integer"
+                }
+	        },
+	        "required": [
+	            "max_seqs",
+	            "e",
+	            "min_seq_id",
+	            "min_aln_len",
+	            "cov_mode",
+	            "c",
+	            "seq_length",
+                "random_state"
+	        ]
+	    }`,
 	"unirep": `
         {
             "$schema": "http://json-schema.org/draft-04/schema#",

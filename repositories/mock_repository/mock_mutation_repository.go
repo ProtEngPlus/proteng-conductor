@@ -63,6 +63,20 @@ func (mr *MockMutationRepositoryMockRecorder) Delete(id interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockMutationRepository)(nil).Delete), id)
 }
 
+// DeleteByJobId mocks base method.
+func (m *MockMutationRepository) DeleteByJobId(jobId string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteByJobId", jobId)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteByJobId indicates an expected call of DeleteByJobId.
+func (mr *MockMutationRepositoryMockRecorder) DeleteByJobId(jobId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByJobId", reflect.TypeOf((*MockMutationRepository)(nil).DeleteByJobId), jobId)
+}
+
 // FindById mocks base method.
 func (m *MockMutationRepository) FindById(id string) (*models.Mutation, error) {
 	m.ctrl.T.Helper()

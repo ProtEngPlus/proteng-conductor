@@ -14,6 +14,7 @@ import (
 type ConfigurationRepository interface {
 	Create(configuration *models.Configuration) error
 	GetAll(query map[string]interface{}) ([]*models.Configuration, error)
+	DeleteByJobId(jobId string) error
 }
 
 type configurationRepository struct {
@@ -63,6 +64,22 @@ func (cr *configurationRepository) Create(configuration *models.Configuration) e
 	configuration.Id = primitive.NewObjectID()
 
 	_, err := cr.collection.InsertOne(context.Background(), configuration)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cr *configurationRepository) DeleteByJobId(jobId string) error {
+	objectId, err := primitive.ObjectIDFromHex(jobId)
+	if err != nil {
+		return err
+	}
+
+	filter := bson.M{"ref_job_id": objectId}
+
+	_, err = cr.collection.DeleteMany(context.Background(), filter)
 	if err != nil {
 		return err
 	}

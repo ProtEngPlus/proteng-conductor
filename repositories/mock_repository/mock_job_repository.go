@@ -91,6 +91,21 @@ func (mr *MockJobRepositoryMockRecorder) FindById(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindById", reflect.TypeOf((*MockJobRepository)(nil).FindById), id)
 }
 
+// FindRecent mocks base method.
+func (m *MockJobRepository) FindRecent(userID string) (*models.RecentJob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindRecent", userID)
+	ret0, _ := ret[0].(*models.RecentJob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindRecent indicates an expected call of FindRecent.
+func (mr *MockJobRepositoryMockRecorder) FindRecent(userID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindRecent", reflect.TypeOf((*MockJobRepository)(nil).FindRecent), userID)
+}
+
 // GetAll mocks base method.
 func (m *MockJobRepository) GetAll(query map[string]interface{}) ([]*models.Job, error) {
 	m.ctrl.T.Helper()
@@ -118,19 +133,4 @@ func (m *MockJobRepository) Update(id string, job *models.Job) error {
 func (mr *MockJobRepositoryMockRecorder) Update(id, job interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockJobRepository)(nil).Update), id, job)
-}
-
-// FindRecent mocks base method.
-func (m *MockJobRepository) FindRecent(userID string) (*models.RecentJob, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindRecent", userID)
-	ret0, _ := ret[0].(*models.RecentJob)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindRecent indicates an expected call of FindRecent.
-func (mr *MockJobRepositoryMockRecorder) FindRecent(userID interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindRecent", reflect.TypeOf((*MockJobRepository)(nil).FindRecent), userID)
 }

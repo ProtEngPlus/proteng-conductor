@@ -48,6 +48,20 @@ func (mr *MockQueryResultRepositoryMockRecorder) Create(query_result interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockQueryResultRepository)(nil).Create), query_result)
 }
 
+// DeleteByJobId mocks base method.
+func (m *MockQueryResultRepository) DeleteByJobId(jobId string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteByJobId", jobId)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteByJobId indicates an expected call of DeleteByJobId.
+func (mr *MockQueryResultRepositoryMockRecorder) DeleteByJobId(jobId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByJobId", reflect.TypeOf((*MockQueryResultRepository)(nil).DeleteByJobId), jobId)
+}
+
 // FindById mocks base method.
 func (m *MockQueryResultRepository) FindById(id string) (*models.QueryResult, error) {
 	m.ctrl.T.Helper()
@@ -90,18 +104,4 @@ func (m *MockQueryResultRepository) Update(id string, query_result *models.Query
 func (mr *MockQueryResultRepositoryMockRecorder) Update(id, query_result interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockQueryResultRepository)(nil).Update), id, query_result)
-}
-
-// DeleteByJobId mocks base method.
-func (m *MockQueryResultRepository) DeleteByJobId(jobId string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteByJobId", jobId)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteByJobId indicates an expected call of DeleteByJobId.
-func (mr *MockQueryResultRepositoryMockRecorder) DeleteByJobId(jobId interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByJobId", reflect.TypeOf((*MockQueryResultRepository)(nil).DeleteByJobId), jobId)
 }

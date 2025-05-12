@@ -17,11 +17,6 @@ type MockMutationResultRepository struct {
 	recorder *MockMutationResultRepositoryMockRecorder
 }
 
-// FindBestResult implements repositories.MutationResultRepository.
-func (m *MockMutationResultRepository) FindBestResult(userId string) (*models.BestAssayScore, error) {
-	panic("unimplemented")
-}
-
 // MockMutationResultRepositoryMockRecorder is the mock recorder for MockMutationResultRepository.
 type MockMutationResultRepositoryMockRecorder struct {
 	mock *MockMutationResultRepository
@@ -93,6 +88,21 @@ func (m *MockMutationResultRepository) DeleteByMutationId(mutationId string) err
 func (mr *MockMutationResultRepositoryMockRecorder) DeleteByMutationId(mutationId interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByMutationId", reflect.TypeOf((*MockMutationResultRepository)(nil).DeleteByMutationId), mutationId)
+}
+
+// FindBestResult mocks base method.
+func (m *MockMutationResultRepository) FindBestResult(userId string) (*models.BestAssayScore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindBestResult", userId)
+	ret0, _ := ret[0].(*models.BestAssayScore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindBestResult indicates an expected call of FindBestResult.
+func (mr *MockMutationResultRepositoryMockRecorder) FindBestResult(userId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindBestResult", reflect.TypeOf((*MockMutationResultRepository)(nil).FindBestResult), userId)
 }
 
 // FindById mocks base method.

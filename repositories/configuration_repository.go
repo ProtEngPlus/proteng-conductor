@@ -11,6 +11,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+//go:generate mockgen -source=configuration_repository.go -destination=mock_repository/mock_configuration_repository.go -package=mock_repository
+
 type ConfigurationRepository interface {
 	Create(configuration *models.Configuration) error
 	GetAll(query map[string]interface{}) ([]*models.Configuration, error)

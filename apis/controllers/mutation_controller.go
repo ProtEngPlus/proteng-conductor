@@ -187,8 +187,12 @@ func (mc *MutationController) UpdateMutation(c *gin.Context) {
 func (mc *MutationController) DeleteMutation(c *gin.Context) {
 	id := c.Param("id")
 
-	err := mc.mutationRepository.Delete(id)
-	if err != nil {
+	if err := mc.mutationResultRepository.DeleteByMutationId(id); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	if err := mc.mutationRepository.Delete(id); err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)
 		return
 	}

@@ -22,6 +22,7 @@ type MutationRepository interface {
 	FindById(id string) (*models.Mutation, error)
 	Update(id string, mutation *models.Mutation) error
 	Delete(id string) error
+	DeleteByJobId(jobId string) error
 	GetAll(query map[string]interface{}) ([]*models.Mutation, error)
 }
 
@@ -177,6 +178,22 @@ func (mr *mutationRepository) Delete(id string) error {
 	filter := bson.M{"_id": objectId}
 
 	_, err = mr.collection.DeleteOne(context.Background(), filter)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (mr *mutationRepository) DeleteByJobId(jobId string) error {
+	objectId, err := primitive.ObjectIDFromHex(jobId)
+	if err != nil {
+		return err
+	}
+
+	filter := bson.M{"job_id": objectId}
+
+	_, err = mr.collection.DeleteMany(context.Background(), filter)
 	if err != nil {
 		return err
 	}

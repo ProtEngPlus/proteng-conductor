@@ -2,9 +2,9 @@ package repositories
 
 import (
 	"context"
-	"time"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/protengplus/proteng-conductor/database"
 	"github.com/protengplus/proteng-conductor/models"
@@ -23,6 +23,7 @@ type QueryResultRepository interface {
 	FindById(id string) (*models.QueryResult, error)
 	Update(id string, query_result *models.QueryResult) error
 	GetAll(query map[string]interface{}) ([]*models.QueryResult, error)
+	DeleteByJobId(jobId string) error
 }
 
 type queryResultRepository struct {
@@ -30,11 +31,11 @@ type queryResultRepository struct {
 }
 
 func NewQueryResultRepository() QueryResultRepository {
-    return &queryResultRepository{collection: database.GetCollection("query_results")}
+	return &queryResultRepository{collection: database.GetCollection("query_results")}
 }
 
 func (qr *queryResultRepository) GetAll(query map[string]interface{}) ([]*models.QueryResult, error) {
-    pipeline := mongo.Pipeline{}
+	pipeline := mongo.Pipeline{}
 
 	if jobID, ok := query["job_id"]; ok && jobID != nil {
 		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "job_id", Value: jobID}}}})
@@ -64,7 +65,7 @@ func (qr *queryResultRepository) GetAll(query map[string]interface{}) ([]*models
 			{Key: "result.percent_identity", Value: bson.D{{Key: "$gte", Value: pif}}},
 		}}})
 	}
-	
+
 	if percentIdentityTo, ok := query["percent_identity_to"]; ok && percentIdentityTo != nil {
 		pit, err := strconv.ParseFloat(percentIdentityTo.(string), 64)
 		if err != nil {
@@ -74,7 +75,7 @@ func (qr *queryResultRepository) GetAll(query map[string]interface{}) ([]*models
 			{Key: "result.percent_identity", Value: bson.D{{Key: "$lte", Value: pit}}},
 		}}})
 	}
-	
+
 	if eValuesFrom, ok := query["e_values_from"]; ok && eValuesFrom != nil {
 		evf, err := strconv.ParseFloat(eValuesFrom.(string), 64)
 		if err != nil {
@@ -84,7 +85,7 @@ func (qr *queryResultRepository) GetAll(query map[string]interface{}) ([]*models
 			{Key: "result.e_values", Value: bson.D{{Key: "$gte", Value: evf}}},
 		}}})
 	}
-	
+
 	if eValuesTo, ok := query["e_values_to"]; ok && eValuesTo != nil {
 		evt, err := strconv.ParseFloat(eValuesTo.(string), 64)
 		if err != nil {
@@ -94,7 +95,7 @@ func (qr *queryResultRepository) GetAll(query map[string]interface{}) ([]*models
 			{Key: "result.e_values", Value: bson.D{{Key: "$lte", Value: evt}}},
 		}}})
 	}
-	
+
 	if queryCoverFrom, ok := query["query_cover_from"]; ok && queryCoverFrom != nil {
 		qcf, err := strconv.ParseFloat(queryCoverFrom.(string), 64)
 		if err != nil {
@@ -104,7 +105,7 @@ func (qr *queryResultRepository) GetAll(query map[string]interface{}) ([]*models
 			{Key: "result.query_cover", Value: bson.D{{Key: "$gte", Value: qcf}}},
 		}}})
 	}
-	
+
 	if queryCoverTo, ok := query["query_cover_to"]; ok && queryCoverTo != nil {
 		qct, err := strconv.ParseFloat(queryCoverTo.(string), 64)
 		if err != nil {
@@ -114,14 +115,14 @@ func (qr *queryResultRepository) GetAll(query map[string]interface{}) ([]*models
 			{Key: "result.query_cover", Value: bson.D{{Key: "$lte", Value: qct}}},
 		}}})
 	}
-	
+
 	if sortField, ok := query["sort"]; ok && sortField != nil {
 		var order int = 1
-		
+
 		if orderVal, ok := query["order"]; ok && orderVal != nil {
-			order = orderVal.(int) 
+			order = orderVal.(int)
 		}
-	
+
 		pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{
 			{Key: "result." + sortField.(string), Value: order},
 		}}})
@@ -149,20 +150,20 @@ func (qr *queryResultRepository) GetAll(query map[string]interface{}) ([]*models
 	}}})
 
 	pipeline = append(pipeline, bson.D{{Key: "$group", Value: bson.D{
-        {Key: "_id", Value: "$_id"}, 
-        {Key: "job_id", Value: bson.D{{Key: "$first", Value: "$job_id"}}},
-        {Key: "input_protein", Value: bson.D{{Key: "$first", Value: "$input_protein"}}},
-        {Key: "result", Value: bson.D{{Key: "$push", Value: "$result"}}},
-        {Key: "created_at", Value: bson.D{{Key: "$first", Value: "$created_at"}}},
-        {Key: "complete_at", Value: bson.D{{Key: "$first", Value: "$complete_at"}}},
-    }}})
+		{Key: "_id", Value: "$_id"},
+		{Key: "job_id", Value: bson.D{{Key: "$first", Value: "$job_id"}}},
+		{Key: "input_protein", Value: bson.D{{Key: "$first", Value: "$input_protein"}}},
+		{Key: "result", Value: bson.D{{Key: "$push", Value: "$result"}}},
+		{Key: "created_at", Value: bson.D{{Key: "$first", Value: "$created_at"}}},
+		{Key: "complete_at", Value: bson.D{{Key: "$first", Value: "$complete_at"}}},
+	}}})
 
 	var results []*models.QueryResult
-    cursor, err := qr.collection.Aggregate(context.Background(), pipeline)
-    if err != nil {
-        return nil, err
-    }
-    defer cursor.Close(context.Background())
+	cursor, err := qr.collection.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
 
 	for cursor.Next(context.Background()) {
 		var queryResult models.QueryResult
@@ -172,7 +173,7 @@ func (qr *queryResultRepository) GetAll(query map[string]interface{}) ([]*models
 		results = append(results, &queryResult)
 	}
 
-    return results, nil
+	return results, nil
 }
 
 func (qr *queryResultRepository) FindById(id string) (*models.QueryResult, error) {
@@ -193,10 +194,10 @@ func (qr *queryResultRepository) FindById(id string) (*models.QueryResult, error
 }
 
 func (qr *queryResultRepository) Create(query_result *models.QueryResult) error {
-    query_result.Id = primitive.NewObjectID()
+	query_result.Id = primitive.NewObjectID()
 	query_result.CreatedAt = time.Now()
-	
-	if (query_result.State == "") {
+
+	if query_result.State == "" {
 		query_result.State = enum.QueryResultStatePending
 	}
 
@@ -209,12 +210,12 @@ func (qr *queryResultRepository) Create(query_result *models.QueryResult) error 
 	if err != nil {
 		return err
 	}
-	
+
 	if len(thisJobQueryResults) == 0 {
-        query_result.RunId = 1
-    } else {
-        query_result.RunId = thisJobQueryResults[0].RunId + 1
-    }
+		query_result.RunId = 1
+	} else {
+		query_result.RunId = thisJobQueryResults[0].RunId + 1
+	}
 
 	_, err = qr.collection.InsertOne(context.Background(), query_result)
 	if err != nil {
@@ -226,23 +227,39 @@ func (qr *queryResultRepository) Create(query_result *models.QueryResult) error 
 
 func (qr *queryResultRepository) Update(id string, query_result *models.QueryResult) error {
 	objectId, err := primitive.ObjectIDFromHex(id)
-    if err!= nil {
-        return err
-    }
-    filter := bson.M{"_id": objectId}
-    
+	if err != nil {
+		return err
+	}
+	filter := bson.M{"_id": objectId}
+
 	update := bson.M{
 		"$set": bson.M{
-			"state": string(query_result.State),
+			"state":         string(query_result.State),
 			"input_protein": query_result.InputProtein,
-			"result": query_result.Result,
+			"result":        query_result.Result,
 		},
 	}
 
-    _, err = qr.collection.UpdateOne(context.Background(), filter, update)
-    if err!= nil {
-        return err
-    }
+	_, err = qr.collection.UpdateOne(context.Background(), filter, update)
+	if err != nil {
+		return err
+	}
 
-    return nil
+	return nil
+}
+
+func (qr *queryResultRepository) DeleteByJobId(jobId string) error {
+	objectId, err := primitive.ObjectIDFromHex(jobId)
+	if err != nil {
+		return err
+	}
+
+	filter := bson.M{"job_id": objectId}
+
+	_, err = qr.collection.DeleteMany(context.Background(), filter)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

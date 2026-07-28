@@ -12,12 +12,13 @@ import (
 
 type LabResult struct {
 	Total     int       `bson:"total" json:"total" validate:"gte=0"`
+	Names     []string  `bson:"names" json:"names" validate:"required"`
 	Sequences []string  `bson:"sequences" json:"sequences" validate:"required"`
 	Scores    []float32 `bson:"scores" json:"scores" validate:"required"`
 }
 
 func (lr LabResult) Validate() error {
-	if lr.Total != len(lr.Sequences) || lr.Total != len(lr.Scores) {
+	if lr.Total != len(lr.Sequences) || lr.Total != len(lr.Scores) || lr.Total != len(lr.Names) {
 		return fmt.Errorf("data length mismatch")
 	}
 	return nil

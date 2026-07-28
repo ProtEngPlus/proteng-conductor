@@ -1,0 +1,25 @@
+package routes
+
+import (
+	"github.com/protengplus/proteng-conductor/apis/controllers"
+	"github.com/protengplus/proteng-conductor/internal/conductor"
+	"github.com/protengplus/proteng-conductor/repositories"
+
+	"github.com/gin-gonic/gin"
+)
+
+func MutationRoute(router *gin.Engine, jr repositories.JobRepository, mr repositories.MutationRepository, mrr repositories.MutationResultRepository, con conductor.Conductor) {
+	mc := controllers.NewMutationController(jr, mr, mrr, con)
+
+	router.GET("/mutations", mc.GetAllMutations)
+	router.GET("/mutations/histograms", mc.GetMutationHistograms)
+	router.GET("/mutations/:id", mc.GetMutation)
+	router.POST("/mutations", mc.CreateMutation)
+	router.PUT("/mutations/:id", mc.UpdateMutation)
+	router.DELETE("/mutations/:id", mc.DeleteMutation)
+	router.POST("/mutations/:id/run", mc.RunMutation)
+	router.GET("/mutations/:id/download", mc.DownloadMutationResults)
+
+	router.GET("/mutations/results", mc.GetAllMutationResults)
+	router.PUT("/mutations/results/:result_id", mc.UpdateMutationResult)
+}

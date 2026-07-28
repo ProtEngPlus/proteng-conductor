@@ -2,22 +2,29 @@ package repositories
 
 import (
 	"context"
-	"proteng-conductor/database"
 	"time"
 
-	"proteng-conductor/models"
+	"github.com/protengplus/proteng-conductor/database"
+	"github.com/protengplus/proteng-conductor/internal/logger"
+	"github.com/protengplus/proteng-conductor/models"
+	"github.com/protengplus/proteng-conductor/models/enum"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+//go:generate mockgen -source=job_repository.go -destination=mock_repository/mock_job_repository.go -package=mock_repository
 
 type JobRepository interface {
 	Create(job *models.Job) error
 	FindById(id string) (*models.Job, error)
+	FindRecent(userID string) (*models.RecentJob, error)
 	Update(id string, job *models.Job) error
 	Delete(id string) error
-	GetAll() ([]*models.Job, error)
+	GetAll(query map[string]interface{}) ([]*models.Job, error)
+	AddErrorLog(id string, log string) error
 }
 
 type jobRepository struct {
@@ -25,13 +32,63 @@ type jobRepository struct {
 }
 
 func NewJobRepository() JobRepository {
-	return &jobRepository{collection: database.GetCollection("jobs")}
+	collection := database.GetCollection("jobs")
+	collection.Indexes().CreateOne(context.Background(), mongo.IndexModel{
+		Keys: bson.M{
+			"name": "text",
+		},
+	})
+	return &jobRepository{collection: collection}
 }
 
-func (jr *jobRepository) GetAll() ([]*models.Job, error) {
+func (jr *jobRepository) GetAll(query map[string]interface{}) ([]*models.Job, error) {
 	var jobs []*models.Job
+	filter := bson.M{}
 
-	cursor, err := jr.collection.Find(context.Background(), bson.M{})
+	if len(query) > 0 {
+		if userID, ok := query["user_id"]; ok {
+			filter["user_id"] = userID
+		}
+		if states, ok := query["state"]; ok {
+			filter["state"] = bson.M{"$in": states}
+		}
+		if name, ok := query["name"]; ok {
+			filter["$text"] = bson.M{"$search": name}
+		}
+		// Filter min/max date of created_at
+		createdAtFrom, _ := time.Parse(time.RFC3339, "0000-01-01T00:00:00Z")
+		createdAtTo := time.Now()
+		err := error(nil)
+		if createdAtFromStr, ok := query["created_at_from"]; ok {
+			createdAtFrom, err = time.Parse(time.RFC3339, createdAtFromStr.(string))
+			if err != nil {
+				return nil, err
+			}
+		}
+		if createdAtToStr, ok := query["created_at_to"]; ok {
+			createdAtTo, err = time.Parse(time.RFC3339, createdAtToStr.(string))
+			if err != nil {
+				return nil, err
+			}
+		}
+		filter["created_at"] = bson.M{
+			"$gte": primitive.NewDateTimeFromTime(createdAtFrom),
+			"$lte": primitive.NewDateTimeFromTime(createdAtTo),
+		}
+	}
+
+	options := options.Find()
+	if sort, ok := query["sort"]; ok {
+		if order, ok := query["order"]; ok {
+			options.SetSort(bson.D{{Key: sort.(string), Value: order.(int)}})
+		} else {
+			options.SetSort(bson.D{{Key: sort.(string), Value: -1}})
+		}
+	} else {
+		options.SetSort(bson.D{{Key: "created_at", Value: -1}})
+	}
+
+	cursor, err := jr.collection.Find(context.Background(), filter, options)
 	if err != nil {
 		return nil, err
 	}
@@ -70,9 +127,45 @@ func (jr *jobRepository) FindById(id string) (*models.Job, error) {
 	return &job, nil
 }
 
+func (jr *jobRepository) FindRecent(userID string) (*models.RecentJob, error) {
+	filter := bson.M{}
+	filter["user_id"] = userID
+
+	options := options.Find()
+	options.SetSort(bson.D{{Key: "created_at", Value: -1}})
+	options.SetLimit(1)
+	options.SetProjection(bson.M{
+		"_id":         1,
+		"name":        1,
+		"description": 1,
+	})
+
+	cursor, err := jr.collection.Find(context.Background(), filter, options)
+	if err != nil {
+		return nil, err
+	}
+
+	defer cursor.Close(context.Background())
+
+	var job models.RecentJob
+	if cursor.Next(context.Background()) {
+		if err := cursor.Decode(&job); err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, nil
+	}
+
+	return &job, nil
+}
+
 func (jr *jobRepository) Create(job *models.Job) error {
 	job.Id = primitive.NewObjectID()
+	job.State = enum.JobStateCreated
 	job.CreatedAt = time.Now()
+	job.UpdatedAt = time.Now()
+	job.RunTime = make(map[string]models.StageRunTime)
+	job.ErrorLogs = []models.ErrLog{}
 
 	_, err := jr.collection.InsertOne(context.Background(), job)
 	if err != nil {
@@ -91,15 +184,20 @@ func (jr *jobRepository) Update(id string, job *models.Job) error {
 
 	update := bson.M{
 		"$set": bson.M{
-			"state":         job.State,
-			"current_stage": job.CurrentStage,
-			"lab_result":    job.LabResult,
-			"options":       job.Options,
-			"artifact":      job.Artifacts,
-			"stages":        job.Stages,
-			"input_protein": job.InputProtein,
-			"ref_job_id":    job.RefJobId,
-			"complete_at":   job.CompleteAt,
+			"name":               job.Name,
+			"state":              string(job.State),
+			"stage_id":           job.StageId,
+			"lab_result":         job.LabResult,
+			"options":            job.Options,
+			"artifact":           job.Artifacts,
+			"meta":               job.Meta,
+			"run_time":           job.RunTime,
+			"input_protein":      job.InputProtein,
+			"run_type":           job.RunType,
+			"description":        job.Description,
+			"is_notification_on": job.IsNotificationOn,
+			"complete_at":        job.CompleteAt,
+			"updated_at":         time.Now(),
 		},
 	}
 
@@ -121,6 +219,33 @@ func (jr *jobRepository) Delete(id string) error {
 
 	_, err = jr.collection.DeleteOne(context.Background(), filter)
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (jr *jobRepository) AddErrorLog(id string, log string) error {
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		logger.Errorf("JobRepository: AddErrorLog: %s", err.Error())
+		return err
+	}
+
+	filter := bson.M{"_id": objectId}
+
+	update := bson.M{
+		"$push": bson.M{
+			"error_logs": models.ErrLog{
+				Content:   log,
+				Timestamp: time.Now(),
+			},
+		},
+	}
+
+	_, err = jr.collection.UpdateOne(context.Background(), filter, update)
+	if err != nil {
+		logger.Errorf("JobRepository: AddErrorLog: %s", err.Error())
 		return err
 	}
 

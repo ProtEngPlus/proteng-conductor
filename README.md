@@ -1,5 +1,20 @@
 # proteng-conductor
 
+## Developer Notes
+
+required:
+
+- go version 1.21+
+- mockgen
+
+Writing unit tests is a good practice for developers. We will mockgen to generate mock code to write unittests. Add `go:generate` comment to the file containing interfaces you want to mock. (examples in `repositories` folder)
+
+And then run
+
+```sh
+go generate ./...
+```
+
 ## Running in local
 
 ### 1. get `.env.dev` file from notion
@@ -17,11 +32,13 @@ ENV=dev go run main.go
 ```
 Windows - CMD
 ```
-set ENV=dev && go run main.go
+set ENV=dev
+go run main.go
 ```
 Windows - Powershell
 ```
-$Env:ENV = "dev" && go run main.go
+$Env:ENV = "dev"
+go run main.go
 ```
 
 ## Building

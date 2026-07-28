@@ -9,7 +9,10 @@ import (
 	"github.com/protengplus/proteng-conductor/database"
 	"github.com/protengplus/proteng-conductor/internal/conductor"
 	"github.com/protengplus/proteng-conductor/internal/logger"
-	"github.com/protengplus/proteng-conductor/internal/rabbitmq"
+	"github.com/protengplus/proteng-conductor/storage"
+
+	rmqConsumer "github.com/protengplus/proteng-conductor/internal/rabbitmq/consumer"
+	rmqPublisher "github.com/protengplus/proteng-conductor/internal/rabbitmq/publisher"
 	"github.com/protengplus/proteng-conductor/internal/validator"
 	"github.com/protengplus/proteng-conductor/repositories"
 
@@ -34,10 +37,14 @@ func main() {
 	}
 	jobRepository := repositories.NewJobRepository()
 	mutationRepository := repositories.NewMutationRepository()
+	queryResultRepository := repositories.NewQueryResultRepository()
+	mutationResultRepository := repositories.NewMutationResultRepository()
+	configurationRepository := repositories.NewConfigurationRepository()
 
 	// conductor
-	conductor := conductor.NewConductor(jobRepository, mutationRepository)
-	rabbitConsumer := rabbitmq.NewConsumer(conductor)
+	rabbitPublisher := rmqPublisher.NewPublisher()
+	conductor := conductor.NewConductor(jobRepository, mutationRepository, queryResultRepository, mutationResultRepository, rabbitPublisher)
+	rabbitConsumer := rmqConsumer.NewConsumer(conductor)
 
 	rabbitMqUser := config.Config.RabbitMqUser
 	rabbitMqPassword := config.Config.RabbitMqPassword
@@ -50,6 +57,9 @@ func main() {
 			logger.Fatalf("Error in RabbitMQ Consumer: %v", err)
 		}
 	}()
+
+	// storage service
+	storageService := storage.NewStorageService()
 
 	// logging middleware
 	router.Use(ginzap.GinzapWithConfig(logger.Zap, &ginzap.Config{
@@ -64,8 +74,11 @@ func main() {
 	})
 
 	// routes
-	routes.JobRoute(router, jobRepository, conductor)
-	routes.MutationRoute(router, jobRepository, mutationRepository, conductor)
+	routes.JobRoute(router, jobRepository, mutationRepository, mutationResultRepository, configurationRepository, queryResultRepository, conductor)
+	routes.MutationRoute(router, jobRepository, mutationRepository, mutationResultRepository, conductor)
+	routes.ArtifactRoute(router, storageService)
+	routes.UniProtRoute(router, storageService)
+	routes.QueryResultRoute(router, jobRepository, queryResultRepository, conductor)
 
 	// panic recovery
 	router.Use(ginzap.RecoveryWithZap(logger.Zap, true))

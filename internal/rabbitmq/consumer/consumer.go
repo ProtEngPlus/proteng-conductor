@@ -1,4 +1,4 @@
-package rabbitmq
+package consumer
 
 import (
 	"errors"

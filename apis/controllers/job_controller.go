@@ -2,10 +2,10 @@ package controllers
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/xeipuuv/gojsonschema"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/conductor"
@@ -15,12 +15,16 @@ import (
 )
 
 type JobController struct {
-	jobRepository repositories.JobRepository
-	conductor     conductor.Conductor
+	jobRepository            repositories.JobRepository
+	mutationRepository       repositories.MutationRepository
+	mutationResultRepository repositories.MutationResultRepository
+	configurationRepository  repositories.ConfigurationRepository
+	queryResultRepository    repositories.QueryResultRepository
+	conductor                conductor.Conductor
 }
 
-func NewJobController(jobRepository repositories.JobRepository, conductor conductor.Conductor) *JobController {
-	return &JobController{jobRepository: jobRepository, conductor: conductor}
+func NewJobController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, mutationResultRepository repositories.MutationResultRepository, configurationRepository repositories.ConfigurationRepository, queryResultRepository repositories.QueryResultRepository, conductor conductor.Conductor) *JobController {
+	return &JobController{jobRepository: jobRepository, mutationRepository: mutationRepository, mutationResultRepository: mutationResultRepository, configurationRepository: configurationRepository, queryResultRepository: queryResultRepository, conductor: conductor}
 }
 
 // GetAllJobs retrieves all jobs
@@ -46,6 +50,12 @@ func (jc *JobController) GetAllJobs(c *gin.Context) {
 			query["order"] = -1
 		}
 	}
+	if createdAtFrom := c.Query("created_at_from"); createdAtFrom != "" {
+		query["created_at_from"] = createdAtFrom
+	}
+	if createdAtTo := c.Query("created_at_to"); createdAtTo != "" {
+		query["created_at_to"] = createdAtTo
+	}
 
 	jobs, err := jc.jobRepository.GetAll(query)
 	if err != nil {
@@ -54,6 +64,60 @@ func (jc *JobController) GetAllJobs(c *gin.Context) {
 	}
 
 	apiutil.ApiResponseOk(c, jobs)
+}
+
+func (jc *JobController) GetJobDashboard(c *gin.Context) {
+	query := map[string]interface{}{}
+	userID := c.Query("user_id")
+	if userID != "" {
+		query["user_id"] = userID
+	} else {
+		err := fmt.Errorf("error: missing user_id")
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: missing user_id")
+		return
+	}
+
+	jobs, err := jc.jobRepository.GetAll(query)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+		return
+	}
+
+	var numberOfJobs models.NumberOfJobs
+
+	for _, job := range jobs {
+		switch job.State {
+		case "CREATED":
+			numberOfJobs.Created++
+		case "PENDING":
+			numberOfJobs.Pending++
+		case "ONGOING":
+			numberOfJobs.Ongoing++
+		case "COMPLETED":
+			numberOfJobs.Completed++
+		case "FAILED":
+			numberOfJobs.Failed++
+		}
+	}
+
+	bestAssayScore, err := jc.mutationResultRepository.FindBestResult(userID)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+		return
+	}
+
+	recentJob, err := jc.jobRepository.FindRecent(userID)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+		return
+	}
+
+	var jobDashboard models.DashboardResponseData
+	jobDashboard.NumberOfJobs = numberOfJobs
+	jobDashboard.BestAssayScore = bestAssayScore
+	jobDashboard.RecentJob = recentJob
+
+	apiutil.ApiResponseOk(c, jobDashboard)
 }
 
 // GetJob retrieves a job by ID
@@ -70,12 +134,18 @@ func (jc *JobController) GetJob(c *gin.Context) {
 
 // CreateJob creates a new job
 func (jc *JobController) CreateJob(c *gin.Context) {
-	var job models.Job
-	err := c.BindJSON(&job)
+	var requestBody struct {
+		Job         models.Job          `json:"job" binding:"required"`
+		QueryResult *models.QueryResult `json:"query_result,omitempty"`
+	}
+
+	err := c.BindJSON(&requestBody)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
 		return
 	}
+
+	job := requestBody.Job
 
 	if err := job.Validate(false); err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid job")
@@ -94,44 +164,38 @@ func (jc *JobController) CreateJob(c *gin.Context) {
 		return
 	}
 
-	apiutil.ApiResponseOk(c, job)
-}
+	if requestBody.QueryResult != nil { // Check if job is created with configuration, and have updated query result, then duplicate the query result
+		queryResult := requestBody.QueryResult
+		queryResult.JobId = job.Id
 
-func (jc *JobController) CreateDuplicateJob(c *gin.Context) {
-	id := c.Param("id")
-	stageId, err := strconv.Atoi(c.Param("stage"))
-	if err != nil || stageId < 0 || stageId > 2 {
-		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid stage id")
-		return
-	}
-	refJob, err := jc.jobRepository.FindById(id)
-	if err != nil {
-		apiutil.ApiResponseNotFound(c, err)
-		return
-	}
+		if err = jc.queryResultRepository.Create(queryResult); err != nil {
+			apiutil.ApiResponseInternalServerError(c, err)
+			return
+		}
+	} else if job.RefJobId != primitive.NilObjectID && job.StageId > 0 { // Check if job is created with configuration, and no updated query result, then duplicate the query result
+		query := map[string]interface{}{
+			"job_id": job.RefJobId,
+		}
 
-	var job models.Job
-	err = c.BindJSON(&job)
-	if err != nil {
-		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
-		return
-	}
-	for i := 0; i <= stageId; i++ {
-		job.Artifacts[refJob.Meta[i]] = refJob.Artifacts[refJob.Meta[i]]
-	}
-	job.RefJobId = refJob.Id
-	job.StageId = stageId + 1
-
-	err = validateJobOptions(&job)
-	if err != nil {
-		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
-		return
-	}
-
-	err = jc.jobRepository.Create(&job)
-	if err != nil {
-		apiutil.ApiResponseInternalServerError(c, err)
-		return
+		queryResults, err := jc.queryResultRepository.GetAll(query)
+		if err != nil {
+			apiutil.ApiResponseInternalServerError(c, err)
+			return
+		}
+		queryResult := &models.QueryResult{}
+		if len(queryResults) == 0 {
+			queryResult = &models.QueryResult{
+				JobId:        job.Id,
+				InputProtein: job.InputProtein,
+			}
+		} else {
+			queryResult = queryResults[0]
+			queryResult.JobId = job.Id
+		}
+		if err = jc.queryResultRepository.Create(queryResult); err != nil {
+			apiutil.ApiResponseInternalServerError(c, err)
+			return
+		}
 	}
 
 	apiutil.ApiResponseOk(c, job)
@@ -164,8 +228,27 @@ func (jc *JobController) UpdateJob(c *gin.Context) {
 func (jc *JobController) DeleteJob(c *gin.Context) {
 	id := c.Param("id")
 
-	err := jc.jobRepository.Delete(id)
-	if err != nil {
+	if err := jc.jobRepository.Delete(id); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	if err := jc.mutationResultRepository.DeleteByJobId(id); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	if err := jc.mutationRepository.DeleteByJobId(id); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	if err := jc.configurationRepository.DeleteByJobId(id); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	if err := jc.queryResultRepository.DeleteByJobId(id); err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)
 		return
 	}
@@ -221,4 +304,69 @@ func validateJobOptions(job *models.Job) error {
 		}
 	}
 	return nil
+}
+
+func validateConfigurationOptions(configuration *models.Configuration) error {
+	for _, service := range configuration.Meta {
+		if _, ok := configuration.Options[service]; !ok {
+			return fmt.Errorf("error: missing options for %s", service)
+		}
+		option := configuration.Options[service]
+		schemaLoader := gojsonschema.NewStringLoader(config.GetSchema(service))
+		optionLoader := gojsonschema.NewGoLoader(option)
+		result, err := gojsonschema.Validate(schemaLoader, optionLoader)
+		if err != nil {
+			return err
+		}
+		if !result.Valid() {
+			return fmt.Errorf(result.Errors()[0].String())
+		}
+	}
+	return nil
+}
+
+func (jc *JobController) CreateConfigurations(c *gin.Context) {
+	var configuration models.Configuration
+	err := c.BindJSON(&configuration)
+	if err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
+		return
+	}
+
+	err = validateConfigurationOptions(&configuration)
+	if err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
+		return
+	}
+
+	err = jc.configurationRepository.Create(&configuration)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	apiutil.ApiResponseOk(c, configuration)
+}
+
+func (jc *JobController) GetAllConfigurations(c *gin.Context) {
+	query := map[string]interface{}{}
+	// check if user_id is provided
+	userID := c.Query("user_id")
+	if userID != "" {
+		query["user_id"] = userID
+	} else {
+		err := fmt.Errorf("error: missing user_id")
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: missing user_id")
+		return
+	}
+	// only return configurations with state "COMPLETED"
+	query["state"] = []string{"COMPLETED"}
+
+	configurations, err := jc.configurationRepository.GetAll(query)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	apiutil.ApiResponseOk(c, configurations)
 }

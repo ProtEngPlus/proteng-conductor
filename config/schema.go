@@ -33,6 +33,9 @@ var Schemas = map[string]string{
                 "random_state": {
                     "type": "integer"
                 },
+                "seq_length": {
+                    "type": "integer"
+                },
                 "hsp_cov": {
                     "type": "integer"
                 }
@@ -44,9 +47,51 @@ var Schemas = map[string]string{
                 "expect",
                 "perc_ident",
                 "random_state",
+                "seq_length",
                 "hsp_cov"
             ]
         }`,
+	"mmseqs2": `
+	    {
+	        "$schema": "http://json-schema.org/draft-04/schema#",
+	        "type": "object",
+	        "properties": {
+	            "max_seqs": {
+	                "type": "integer"
+	            },
+	            "e": {
+	                "type": "number"
+	            },
+	            "min_seq_id": {
+	                "type": "number"
+	            },
+	            "min_aln_len": {
+	                "type": "integer"
+	            },
+	            "cov_mode": {
+	                "type": "integer"
+	            },
+	            "c": {
+	                "type": "number"
+	            },
+	            "seq_length": {
+	                "type": "integer"
+	            },
+                "random_state": {
+                    "type": "integer"
+                }
+	        },
+	        "required": [
+	            "max_seqs",
+	            "e",
+	            "min_seq_id",
+	            "min_aln_len",
+	            "cov_mode",
+	            "c",
+	            "seq_length",
+                "random_state"
+	        ]
+	    }`,
 	"unirep": `
         {
             "$schema": "http://json-schema.org/draft-04/schema#",
@@ -117,12 +162,16 @@ var Schemas = map[string]string{
                 },
                 "num_trajectories": {
                     "type": "integer"
+                },
+                "mutate_pos_range": {
+                    "type": "integer"
                 }
             },
             "required": [
                 "temperature",
                 "num_iterations",
-                "num_trajectories"
+                "num_trajectories",
+                "mutate_pos_range"
             ]
         }`,
 }

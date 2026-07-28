@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/protengplus/proteng-conductor/database"
@@ -21,6 +22,7 @@ type MutationRepository interface {
 	FindById(id string) (*models.Mutation, error)
 	Update(id string, mutation *models.Mutation) error
 	Delete(id string) error
+	DeleteByJobId(jobId string) error
 	GetAll(query map[string]interface{}) ([]*models.Mutation, error)
 }
 
@@ -43,6 +45,20 @@ func (mr *mutationRepository) GetAll(query map[string]interface{}) ([]*models.Mu
 				return nil, err
 			}
 			filter["job_id"] = jobID
+		}
+		if isBookmark, ok := query["is_bookmark"]; ok {
+			isBookmark, err := strconv.ParseBool(isBookmark.(string))
+			if err != nil {
+				return nil, err
+			}
+			filter["is_bookmark"] = isBookmark
+			if err != nil {
+				return nil, err
+			}
+			filter["is_bookmark"] = isBookmark
+		}
+		if userID, ok := query["user_id"]; ok {
+			filter["user_id"] = userID
 		}
 	}
 
@@ -134,10 +150,14 @@ func (mr *mutationRepository) Update(id string, mutation *models.Mutation) error
 
 	update := bson.M{
 		"$set": bson.M{
-			"state":         string(mutation.State),
-			"options":       mutation.Options,
-			"input_protein": mutation.InputProtein,
-			"result":        mutation.Result,
+			"name":           mutation.Name,
+			"state":          string(mutation.State),
+			"options":        mutation.Options,
+			"tool":           mutation.Tool,
+			"input_protein":  mutation.InputProtein,
+			"is_bookmark":    mutation.IsBookmark,
+			"histogram_data": mutation.HistogramData,
+			"complete_at":    mutation.CompleteAt,
 		},
 	}
 
@@ -158,6 +178,22 @@ func (mr *mutationRepository) Delete(id string) error {
 	filter := bson.M{"_id": objectId}
 
 	_, err = mr.collection.DeleteOne(context.Background(), filter)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (mr *mutationRepository) DeleteByJobId(jobId string) error {
+	objectId, err := primitive.ObjectIDFromHex(jobId)
+	if err != nil {
+		return err
+	}
+
+	filter := bson.M{"job_id": objectId}
+
+	_, err = mr.collection.DeleteMany(context.Background(), filter)
 	if err != nil {
 		return err
 	}

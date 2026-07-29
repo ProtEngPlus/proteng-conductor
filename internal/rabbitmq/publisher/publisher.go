@@ -2,7 +2,6 @@ package publisher
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
@@ -26,11 +25,7 @@ func NewPublisher() Publisher {
 }
 
 func (p *publisher) newConnection() error {
-	rabbitMqUser := config.Config.RabbitMqUser
-	rabbitMqPassword := config.Config.RabbitMqPassword
-	rabbitMqHost := config.Config.RabbitMqHost
-	rabbitMqPort := config.Config.RabbitMqPort
-	amqpURL := fmt.Sprintf("amqp://%s:%s@%s:%s/", rabbitMqUser, rabbitMqPassword, rabbitMqHost, rabbitMqPort)
+	amqpURL := config.Config.RabbitMqUrl
 
 	conn, err := amqp.Dial(amqpURL)
 	if err != nil {

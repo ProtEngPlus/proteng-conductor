@@ -15,11 +15,8 @@ type config struct {
 	Env      string `envconfig:"ENV"`
 	HttpPort string `envconfig:"HTTP_PORT"`
 
-	RabbitMqUser     string `envconfig:"RABBITMQ_USER"`
-	RabbitMqPassword string `envconfig:"RABBITMQ_PASSWORD"`
-	RabbitMqHost     string `envconfig:"RABBITMQ_HOST"`
-	RabbitMqPort     string `envconfig:"RABBITMQ_PORT"`
-	JobQueue         string `envconfig:"JOB_QUEUE"`
+	RabbitMqUrl string `envconfig:"RABBITMQ_URL"`
+	JobQueue    string `envconfig:"JOB_QUEUE"`
 
 	MongoUri string `envconfig:"MONGO_URI"`
 	MongoDb  string `envconfig:"MONGO_DB"`

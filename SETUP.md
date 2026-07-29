@@ -14,10 +14,9 @@
    ```
    Done when: exits 0, no errors.
 
-3. **Run** — `ENV` picks which `.env.<ENV>` file loads (there is no `.env.dev` anymore):
-   - macOS/Linux: `ENV=local go run main.go`
-   - Windows CMD: `set ENV=local && go run main.go`
-   - Windows PowerShell: `$Env:ENV = "local"; go run main.go`
+3. **Run** — `./run.sh` (Git Bash on Windows, or macOS/Linux terminal)
+
+   (just sets `ENV=local` and runs `go run main.go` — `ENV` picks which `.env.<ENV>` file loads, there is no `.env.dev` anymore. Run manually with `ENV=local go run main.go` if you'd rather not use the script. Note: plain `cmd.exe`/PowerShell can't run `.sh` directly — use Git Bash.)
 
    Done when: log shows the server listening on `HTTP_PORT` with no crash.
 

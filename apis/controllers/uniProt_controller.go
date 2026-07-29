@@ -1,17 +1,17 @@
 package controllers
 
 import (
+	"bufio"
+	"bytes"
+	"compress/gzip"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/protengplus/proteng-conductor/models"
 	"github.com/protengplus/proteng-conductor/storage"
 	"github.com/protengplus/proteng-conductor/utils/apiutil"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"bufio"
-	"compress/gzip"
-	"bytes"
 )
 
 type UniProtController struct {
@@ -26,7 +26,7 @@ func (up *UniProtController) GetProteinSequenceFromId(c *gin.Context) {
 	uniProtId := c.Param("uniProtId")
 
 	url := fmt.Sprintf("https://www.uniprot.org/uniprot/%s.fasta", uniProtId)
-	
+
 	// Create new request
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -56,7 +56,7 @@ func (up *UniProtController) GetProteinSequenceFromId(c *gin.Context) {
 	}
 
 	reader := io.NopCloser(bytes.NewReader(bodyBytes))
-	
+
 	gzipReader, err := gzip.NewReader(reader)
 	if err != nil {
 		apiutil.ApiResponseInternalServerError(c, err, "error: cannot retrieve body from response")
@@ -69,7 +69,6 @@ func (up *UniProtController) GetProteinSequenceFromId(c *gin.Context) {
 		apiutil.ApiResponseInternalServerError(c, err, "error: cannot retrieve body from response")
 		return
 	}
-
 
 	rawString := string(bodyBytes)
 	result := formatSequence(rawString)
@@ -86,11 +85,11 @@ func formatSequence(fasta string) string {
 	scanner := bufio.NewScanner(strings.NewReader(fasta))
 	for scanner.Scan() {
 		line := scanner.Text()
-		
+
 		if strings.HasPrefix(line, ">") {
 			continue
 		}
-		
+
 		sequence.WriteString(line)
 	}
 	return sequence.String()

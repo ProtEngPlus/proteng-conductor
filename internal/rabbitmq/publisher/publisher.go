@@ -91,7 +91,7 @@ func (p *publisher) PublishDefaultExchange(ctx context.Context, queueName string
 	return nil
 }
 
-func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, body []byte)  error{
+func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, body []byte) error {
 	err := p.ensureConnection()
 	if err != nil {
 		return err
@@ -106,7 +106,7 @@ func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, bod
 	err = ch.ExchangeDeclare(
 		"logs_topic", // name
 		"topic",      // type
-		false,         // durable
+		false,        // durable
 		false,        // auto-deleted
 		false,        // internal
 		false,        // no-wait
@@ -115,15 +115,15 @@ func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, bod
 	if err != nil {
 		return err
 	}
-	
+
 	err = ch.PublishWithContext(ctx,
-		"logs_topic",          // exchange
-		routingKey, // routing key **change here to tool**
-		false, // mandatory
-		false, // immediate
+		"logs_topic", // exchange
+		routingKey,   // routing key **change here to tool**
+		false,        // mandatory
+		false,        // immediate
 		amqp.Publishing{
-				ContentType: "text/plain",
-				Body:        []byte(body),
+			ContentType: "text/plain",
+			Body:        []byte(body),
 		})
 	if err != nil {
 		return err

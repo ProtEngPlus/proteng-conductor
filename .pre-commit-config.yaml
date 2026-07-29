@@ -1,10 +1,16 @@
 default_stages: [pre-commit, pre-push]
 
 repos:
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: go fmt
+        entry: gofmt -l -w
+        language: system
+        types: [go]
   - repo: https://github.com/dnephin/pre-commit-golang
     rev: v0.5.1
     hooks:
-      - id: go-fmt
       - id: go-vet
       - id: go-build
         stages: [pre-push]

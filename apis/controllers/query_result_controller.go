@@ -2,10 +2,10 @@ package controllers
 
 import (
 	"bytes"
-	"strconv"
 	"encoding/csv"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"strconv"
 
 	"github.com/protengplus/proteng-conductor/internal/conductor"
 	"github.com/protengplus/proteng-conductor/repositories"
@@ -14,9 +14,9 @@ import (
 )
 
 type QueryResultController struct {
-	jobRepository		  repositories.JobRepository
+	jobRepository         repositories.JobRepository
 	queryResultRepository repositories.QueryResultRepository
-	conductor			  conductor.Conductor
+	conductor             conductor.Conductor
 }
 
 func NewQueryResultController(jobRepository repositories.JobRepository, queryRepository repositories.QueryResultRepository, conductor conductor.Conductor) *QueryResultController {
@@ -37,43 +37,43 @@ func (qr *QueryResultController) GetAllQueryResults(c *gin.Context) {
 			query["is_selected"] = isSelectedBool
 		}
 	}
-	if organisms := c.Query("organisms"); organisms != ""{
+	if organisms := c.Query("organisms"); organisms != "" {
 		query["organisms"] = organisms
 	}
 	if percentIdentityFrom := c.Query("percentIdentityFrom"); percentIdentityFrom != "" {
 		query["percent_identity_from"] = percentIdentityFrom
 	}
-	if percentIdentityTo := c.Query("percentIdentityTo"); percentIdentityTo != ""{
+	if percentIdentityTo := c.Query("percentIdentityTo"); percentIdentityTo != "" {
 		query["percent_identity_to"] = percentIdentityTo
 	}
 	if eValuesFrom := c.Query("eValuesFrom"); eValuesFrom != "" {
-        query["e_values_from"] = eValuesFrom
-    }
+		query["e_values_from"] = eValuesFrom
+	}
 	if eValuesTo := c.Query("eValuesTo"); eValuesTo != "" {
 		query["e_values_to"] = eValuesTo
 	}
-	if queryCoverFrom := c.Query("queryCoverFrom"); queryCoverFrom!= "" {
-        query["query_cover_from"] = queryCoverFrom
-    }
-	if queryCoverTo := c.Query("queryCoverTo"); queryCoverTo!= "" {
-        query["query_cover_to"] = queryCoverTo
-    }
+	if queryCoverFrom := c.Query("queryCoverFrom"); queryCoverFrom != "" {
+		query["query_cover_from"] = queryCoverFrom
+	}
+	if queryCoverTo := c.Query("queryCoverTo"); queryCoverTo != "" {
+		query["query_cover_to"] = queryCoverTo
+	}
 	if sort := c.Query("sort"); sort != "" {
 		query["sort"] = sort
 	}
 	if order := c.Query("order"); order != "" {
 		switch order {
-        case "asc":
-            query["order"] = 1
-        case "desc":
-            query["order"] = -1
-        }
+		case "asc":
+			query["order"] = 1
+		case "desc":
+			query["order"] = -1
+		}
 	}
 
 	query_results, err := qr.queryResultRepository.GetAll(query)
 	if err != nil {
 		apiutil.ApiResponseNotFound(c, err)
-        return
+		return
 	}
 
 	apiutil.ApiResponseOk(c, query_results)
@@ -81,14 +81,14 @@ func (qr *QueryResultController) GetAllQueryResults(c *gin.Context) {
 
 // GetQueryResult retrieves a query result by ID
 func (qr *QueryResultController) GetQueryResult(c *gin.Context) {
-    id := c.Param("id")
-    query_result, err := qr.queryResultRepository.FindById(id)
-    if err != nil {
-        apiutil.ApiResponseNotFound(c, err)
-        return
-    }
+	id := c.Param("id")
+	query_result, err := qr.queryResultRepository.FindById(id)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+		return
+	}
 
-    apiutil.ApiResponseOk(c, query_result)
+	apiutil.ApiResponseOk(c, query_result)
 }
 
 func (qr *QueryResultController) UpdateQueryResult(c *gin.Context) {
@@ -96,18 +96,18 @@ func (qr *QueryResultController) UpdateQueryResult(c *gin.Context) {
 	query_result, err := qr.queryResultRepository.FindById(id)
 	if err != nil {
 		apiutil.ApiResponseNotFound(c, err)
-        return
+		return
 	}
 	err = c.BindJSON(&query_result)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
-        return
+		return
 	}
 
 	err = qr.queryResultRepository.Update(id, query_result)
 	if err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)
-        return
+		return
 	}
 
 	apiutil.ApiResponseOk(c, query_result)
@@ -129,13 +129,13 @@ func (qr *QueryResultController) DownloadQueryResult(c *gin.Context) {
 	query_results, err := qr.queryResultRepository.GetAll(query)
 	if err != nil {
 		apiutil.ApiResponseNotFound(c, err)
-        return
+		return
 	}
 
 	// Create a CSV file
 	var csvBuffer bytes.Buffer
 	writer := csv.NewWriter(&csvBuffer)
-	
+
 	header := []string{"description", "organisms", "max_score", "score", "query_cover", "e_values", "percent_identity", "acc_len", "accession"}
 	if err := writer.Write(header); err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)
@@ -144,14 +144,14 @@ func (qr *QueryResultController) DownloadQueryResult(c *gin.Context) {
 
 	for _, result := range query_results[0].Result {
 		record := []string{
-			result.Description, 
+			result.Description,
 			result.Organisms,
 			fmt.Sprintf("%.10f", result.MaxScore),
 			fmt.Sprintf("%.10f", result.Score),
-            fmt.Sprintf("%.10f", result.QueryCover),
-            fmt.Sprintf("%.10f", result.EValues),
-            fmt.Sprintf("%.10f", result.PercentIdentity),
-            strconv.Itoa(int(result.AccLen)),
+			fmt.Sprintf("%.10f", result.QueryCover),
+			fmt.Sprintf("%.10f", result.EValues),
+			fmt.Sprintf("%.10f", result.PercentIdentity),
+			strconv.Itoa(int(result.AccLen)),
 			result.Accession,
 		}
 		if err := writer.Write(record); err != nil {

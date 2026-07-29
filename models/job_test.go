@@ -56,6 +56,7 @@ func TestValidateJob(t *testing.T) {
 			Artifacts:    map[string]Artifact{"a": {BucketName: "test", Path: "test", Url: "test"}},
 			Meta:         []string{"test"},
 			InputProtein: "test",
+			RunType:      "auto",
 		}
 		err := job.Validate(true)
 		assert.Nil(t, err)

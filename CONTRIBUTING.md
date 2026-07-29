@@ -37,3 +37,13 @@ Breaking changes: add `!` after type/scope (`feat!: ...`) or a `BREAKING CHANGE:
 ## Pull requests
 
 Use the PR template. Keep PRs scoped to one concern where possible. Squash-merge or use a clean merge commit — avoid merge-commit noise from repeatedly merging `dev` back into a long-lived feature branch.
+
+## Pre-commit hooks
+
+This repo uses [pre-commit](https://pre-commit.com/) (see [SETUP.md](./SETUP.md) to install):
+
+- **pre-commit**: `gofmt -l -w` + `go vet` on staged Go files
+- **pre-push**: additionally runs `go build` and `go test`
+- **commit-msg**: rejects commit messages that don't follow the Conventional Commits format above
+
+Run everything manually: `pre-commit run --all-files`

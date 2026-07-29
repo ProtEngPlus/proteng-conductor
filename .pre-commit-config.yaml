@@ -1,0 +1,12 @@
+default_stages: [pre-commit, pre-push]
+
+repos:
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+      - id: go-vet
+      - id: go-build
+        stages: [pre-push]
+      - id: go-unit-tests
+        stages: [pre-push]

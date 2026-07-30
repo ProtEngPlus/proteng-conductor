@@ -18,7 +18,7 @@
 
    (just sets `ENV=local` and runs `go run main.go` — `ENV` picks which `.env.<ENV>` file loads, there is no `.env.dev` anymore. Run manually with `ENV=local go run main.go` if you'd rather not use the script. Note: plain `cmd.exe`/PowerShell can't run `.sh` directly — use Git Bash.)
 
-   Done when: log shows the server listening on `HTTP_PORT` with no crash.
+   Done when: terminal prints `proteng-conductor is running on :8081` (or whatever `HTTP_PORT` is set to), with no crash after.
 
 ## Format
 

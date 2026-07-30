@@ -86,6 +86,7 @@ func (c *Consumer) RunConsumer(amqpURL string, queueName string) error {
 
 		<-sig
 		logger.Zap.Info("Shutting down consumer...")
+		os.Exit(0)
 		return nil
 	}
 }

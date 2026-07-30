@@ -57,6 +57,10 @@ Requires `mockgen`. Add a `go:generate` comment above the interface you want moc
 go generate ./...
 ```
 
+## API docs
+
+This service is called internally by proteng-bff only (frontend never calls it directly) — API docs live on **bff's** Swagger UI, not here: `http://localhost:8080/swagger/index.html` (see `proteng-bff/SETUP.md`).
+
 ## Build (optional, for deployment testing)
 
 Env vars are not baked into the image — pass them at run time:

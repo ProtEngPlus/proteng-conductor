@@ -80,6 +80,7 @@ func main() {
 
 	// start server
 	httpPort := config.Config.HttpPort
+	logger.Zap.Info("proteng-conductor is running on :" + httpPort)
 	err = router.Run(":" + httpPort)
 	if err != nil {
 		logger.Fatalf("Failed to start server: %v", err)

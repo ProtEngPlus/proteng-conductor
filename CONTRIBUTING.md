@@ -46,4 +46,6 @@ This repo uses [pre-commit](https://pre-commit.com/) (see [SETUP.md](./SETUP.md)
 - **pre-push**: additionally runs `go build` and `go test`
 - **commit-msg**: rejects commit messages that don't follow the Conventional Commits format above
 
+`gofmt` and `go vet` also run in CI (`.github/workflows/test-build-dev.yaml`) on every push — skipping hooks locally (`--no-verify`) just means CI catches it instead.
+
 Run everything manually: `pre-commit run --all-files`

@@ -30,7 +30,7 @@ gofmt -l -w .
 
 ## Lint
 
-`go vet` reports issues but does not autofix — fix them by hand:
+`go vet` reports issues but does not autofix — fix them by hand. Both this and `gofmt` also run in CI (`.github/workflows/test-build-dev.yaml`) on every push.
 
 ```sh
 go vet ./...

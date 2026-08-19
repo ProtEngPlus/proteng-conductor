@@ -1,6 +1,8 @@
 name: Build and Publish
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       auto_deploy:
@@ -50,7 +52,7 @@ jobs:
       name: Auto Deploy
       runs-on: ubuntu-latest
       needs: build
-      if: ${{ github.event.inputs.auto_deploy }}
+      if: ${{ github.event_name == 'push' || github.event.inputs.auto_deploy == 'true' }}
       permissions:
         contents: read
         packages: write

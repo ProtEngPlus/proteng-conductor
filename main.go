@@ -65,7 +65,7 @@ func main() {
 
 	// health check
 	router.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"message": "ok"})
+		c.JSON(200, gin.H{"message": "ok", "environment": config.Config.Env})
 	})
 
 	// routes

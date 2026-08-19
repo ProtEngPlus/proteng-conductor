@@ -1,6 +1,6 @@
 module github.com/protengplus/proteng-conductor
 
-go 1.20
+go 1.22
 
 require (
 	cloud.google.com/go/storage v1.40.0

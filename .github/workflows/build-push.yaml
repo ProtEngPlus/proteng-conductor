@@ -2,7 +2,7 @@ name: Build and Publish
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
     inputs:
       auto_deploy:
@@ -70,5 +70,5 @@ jobs:
             github_token: ${{ secrets.ACTIONS_AUTH_TOKEN }}
             github_user: protenger
             workflow_file_name: update-tag.yaml
-            client_payload: ${{ format('{{"path":"{0}","tag":"{1}"}}', 'k8s/apps/conductor/overlays/dev/kustomization.yaml', env.SHORT_SHA) }}
+            client_payload: ${{ format('{{"path":"{0}","tag":"{1}"}}', github.ref_name == 'main' && 'k8s/apps/conductor/overlays/production/kustomization.yaml' || 'k8s/apps/conductor/overlays/dev/kustomization.yaml', env.SHORT_SHA) }}
     

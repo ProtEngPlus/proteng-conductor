@@ -3,20 +3,24 @@
 ## Run locally
 
 1. **Copy the env file**
+
    ```sh
    cp .env.example .env.local
    ```
+
    Fill in real values. Done when: `.env.local` exists with real values (not the empty template).
 
 2. **Install dependencies**
+
    ```sh
    go mod tidy
    ```
+
    Done when: exits 0, no errors.
 
-3. **Run** — `./run.sh` (Git Bash on Windows, or macOS/Linux terminal)
+3. **Run** - `./run.sh` (Git Bash on Windows, or macOS/Linux terminal)
 
-   (just sets `ENV=local` and runs `go run main.go` — `ENV` picks which `.env.<ENV>` file loads, there is no `.env.dev` anymore. Run manually with `ENV=local go run main.go` if you'd rather not use the script. Note: plain `cmd.exe`/PowerShell can't run `.sh` directly — use Git Bash.)
+   (just sets `ENV=local` and runs `go run main.go` - `ENV` picks which `.env.<ENV>` file loads, there is no `.env.dev` anymore. Run manually with `ENV=local go run main.go` if you'd rather not use the script. Note: plain `cmd.exe`/PowerShell can't run `.sh` directly - use Git Bash.)
 
    Done when: terminal prints `proteng-conductor is running on :8081` (or whatever `HTTP_PORT` is set to), with no crash after.
 
@@ -30,7 +34,7 @@ gofmt -l -w .
 
 ## Lint
 
-`go vet` reports issues but does not autofix — fix them by hand. Both this and `gofmt` also run in CI (`.github/workflows/test-build-dev.yaml`) on every push.
+`go vet` reports issues but does not autofix - fix them by hand. Both this and `gofmt` also run in CI (`.github/workflows/test-build-dev.yaml`) on every push.
 
 ```sh
 go vet ./...
@@ -59,11 +63,11 @@ go generate ./...
 
 ## API docs
 
-This service is called internally by proteng-bff only (frontend never calls it directly) — API docs live on **bff's** Swagger UI, not here: `http://localhost:8080/swagger/index.html` (see `proteng-bff/SETUP.md`).
+This service is called internally by proteng-bff only (frontend never calls it directly) - API docs live on **bff's** Swagger UI, not here: `http://localhost:8080/swagger/index.html` (see `proteng-bff/SETUP.md`).
 
 ## Build (optional, for deployment testing)
 
-Env vars are not baked into the image — pass them at run time:
+Env vars are not baked into the image - pass them at run time:
 
 ```sh
 docker run -d --env-file .env.local proteng-conductor

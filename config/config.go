@@ -21,11 +21,6 @@ type config struct {
 	MongoUri string `envconfig:"MONGO_URI"`
 	MongoDb  string `envconfig:"MONGO_DB"`
 
-	SequencerUrl string `envconfig:"SEQUENCER_URL"`
-	EvotuneUrl   string `envconfig:"EVOTUNE_URL"`
-	FittopUrl    string `envconfig:"FIT_TOP_URL"`
-	MutationUrl  string `envconfig:"MUTATION_URL"`
-
 	ProjectID    string `envconfig:"PROJECT_ID"`
 	PrivateKeyID string `envconfig:"PRIVATE_KEY_ID"`
 	PrivateKey   string `envconfig:"PRIVATE_KEY"`

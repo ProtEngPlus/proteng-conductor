@@ -1,15 +1,12 @@
 package conductor
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
-	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
 	rmqPublisher "github.com/protengplus/proteng-conductor/internal/rabbitmq/publisher"
 	"github.com/protengplus/proteng-conductor/models"
@@ -475,51 +472,6 @@ func (con *conductor) updateMutationData(data Data) {
 		logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
 		return
 	}
-}
-
-/*
-Deprecated, as we are now using RabbitMQ to trigger the pipeline components.
-
-use sendJobToPipelineComponent instead
-*/
-func (con *conductor) startPipelineComponent(stageId int, request PipelineRequest) error {
-
-	reqBody, err := json.Marshal(request)
-
-	if err != nil {
-		return err
-	}
-
-	var url string
-	switch stageId {
-	case 0:
-		url = config.Config.SequencerUrl
-	case 1:
-		url = config.Config.EvotuneUrl
-	case 2:
-		url = config.Config.FittopUrl
-	case 3:
-		url = config.Config.MutationUrl
-	}
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("error: %s", resp.Status)
-	}
-
-	return nil
 }
 
 func (con *conductor) sendJobToPipelineComponent(stageId int, tool string, request PipelineRequest) error {

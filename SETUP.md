@@ -21,7 +21,13 @@
    docker run -d --name mongo -p 27017:27017 mongo
    ```
 
-   Done when: `.env.local` exists and those two containers are running.
+   Instead of a local Mongo you can point `MONGO_URI` in `.env.local` (not
+   `.env.example`) at a shared cluster - ask a maintainer for the connection
+   string. If you do, set `MONGO_DB` to a name of your own (e.g.
+   `proteng_<yourname>`), never `proteng-dev` / `proteng-production`, so your test
+   data stays out of the shared databases.
+
+   Done when: `.env.local` exists and RabbitMQ + a reachable MongoDB are up.
 
 2. **Install dependencies**
 

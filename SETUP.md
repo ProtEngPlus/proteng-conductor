@@ -8,7 +8,20 @@
    cp .env.example .env.local
    ```
 
-   Fill in real values. Done when: `.env.local` exists with real values (not the empty template).
+   `.env.example` already has working local defaults for `RABBITMQ_URL`
+   (`amqp://guest:guest@localhost:5672/`) and `MONGO_URI`
+   (`mongodb://localhost:27017`). Only the GCP service-account block
+   (`PROJECT_ID` … `TOKEN_URI`) needs real values, and only if you exercise GCS
+   artifact storage - get those from a maintainer.
+
+   You need a local RabbitMQ and MongoDB for those defaults to connect:
+
+   ```sh
+   docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+   docker run -d --name mongo -p 27017:27017 mongo
+   ```
+
+   Done when: `.env.local` exists and those two containers are running.
 
 2. **Install dependencies**
 

@@ -1,5 +1,7 @@
 # proteng-conductor
 
-Gin + MongoDB job orchestrator: the center of ProtEngPlus. Manages job/pipeline state, consumes stage-completion events from RabbitMQ, and dispatches the next pipeline stage to the [proteng-kubeflow](https://github.com/ProtEngPlus/proteng-kubeflow) microservices. Called by [proteng-bff](https://github.com/ProtEngPlus/proteng-bff).
+Job orchestrator (Gin + MongoDB) หัวใจของ ProtEngPlus จัดการ state ของ job/pipeline รับ event ตอน stage เสร็จจาก RabbitMQ แล้วสั่ง stage ถัดไปไปที่ microservice ของ [proteng-kubeflow](https://github.com/ProtEngPlus/proteng-kubeflow) ถูกเรียกจาก [proteng-bff](https://github.com/ProtEngPlus/proteng-bff)
 
-See [SETUP.md](./SETUP.md) to get it running locally, and [CONTRIBUTING.md](./CONTRIBUTING.md) for commit conventions and pre-commit hooks.
+วิธีรัน local ดู [SETUP.md](./SETUP.md) กติกา commit กับ pre-commit hook ดู [CONTRIBUTING.md](./CONTRIBUTING.md)
+
+เพิ่งเริ่มกับ ProtEngPlus? เริ่มที่ [Guidebook](https://github.com/ProtEngPlus/manual-guides-2023/blob/main/README.md) ก่อน

@@ -68,25 +68,23 @@ func (mrr *mutationResultRepository) GetAll(query map[string]interface{}) ([]*mo
 		} else {
 			options.SetSort(bson.D{{Key: sort.(string), Value: -1}})
 		}
-		// Filter min/max value of sort field
-		minValue := 0.0
-		maxValue := 1.0
-		err := error(nil)
+		rangeFilter := bson.M{}
 		if minValueStr, ok := query["min_value"]; ok {
-			minValue, err = strconv.ParseFloat(minValueStr.(string), 64)
+			minValue, err := strconv.ParseFloat(minValueStr.(string), 64)
 			if err != nil {
 				return nil, err
 			}
+			rangeFilter["$gte"] = minValue
 		}
 		if maxValueStr, ok := query["max_value"]; ok {
-			maxValue, err = strconv.ParseFloat(maxValueStr.(string), 64)
+			maxValue, err := strconv.ParseFloat(maxValueStr.(string), 64)
 			if err != nil {
 				return nil, err
 			}
+			rangeFilter["$lte"] = maxValue
 		}
-		filter[sort.(string)] = bson.M{
-			"$gte": minValue,
-			"$lte": maxValue,
+		if len(rangeFilter) > 0 {
+			filter[sort.(string)] = rangeFilter
 		}
 	} else {
 		options.SetSort(bson.D{{Key: "id", Value: -1}})

@@ -19,7 +19,7 @@ type Mutation struct {
 	State         enum.MutationState     `bson:"state" json:"state"`
 	IsBookmark    bool                   `bson:"is_bookmark" json:"is_bookmark"`
 	UserId        string                 `bson:"user_id" json:"user_id"`
-	HistogramData []int                  `bson:"histogram_data" json:"histogram_data"`
+	HistogramData []int                  `bson:"histogram_data" json:"histogram_data"` // deprecated: histograms are computed at read time in GetMutationHistograms, no longer written
 	CreatedAt     time.Time              `bson:"created_at" json:"created_at"`
 	CompleteAt    time.Time              `bson:"complete_at" json:"complete_at"`
 }
@@ -36,8 +36,11 @@ type MutationResult struct {
 }
 
 type MutationHistogram struct {
-	Name string `bson:"name" json:"name"`
-	Data []int  `bson:"data" json:"data"`
+	MutationId primitive.ObjectID `bson:"mutation_id" json:"mutation_id"`
+	Name       string             `bson:"name" json:"name"`
+	Data       []int              `bson:"data" json:"data"`
+	Min        float32            `bson:"min" json:"min"`
+	Max        float32            `bson:"max" json:"max"`
 }
 
 type BestAssayScore struct {

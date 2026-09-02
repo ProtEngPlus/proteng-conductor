@@ -7,11 +7,14 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/protengplus/proteng-conductor/internal/conductor"
 	"github.com/protengplus/proteng-conductor/models"
+	"github.com/protengplus/proteng-conductor/models/enum"
 	"github.com/protengplus/proteng-conductor/repositories"
 	"github.com/protengplus/proteng-conductor/utils/apiutil"
+	"github.com/protengplus/proteng-conductor/utils/histogram"
 )
 
 type MutationController struct {
@@ -86,27 +89,56 @@ func (mc *MutationController) GetAllMutations(c *gin.Context) {
 	}
 }
 
-// GetMutationHistograms retrieves histograms from all mutations
+// GetMutationHistograms returns the distribution chart for a job
 func (mc *MutationController) GetMutationHistograms(c *gin.Context) {
-	query := map[string]interface{}{}
-	if jobID := c.Query("job_id"); jobID != "" {
-		query["job_id"] = jobID
+	jobID := c.Query("job_id")
+	if jobID == "" {
+		apiutil.ApiResponseOk(c, []models.MutationHistogram{})
+		return
 	}
 
-	mutations, err := mc.mutationRepository.GetAll(query)
+	// the mutation collections of this job
+	mutations, err := mc.mutationRepository.GetAll(map[string]interface{}{"job_id": jobID})
 	if err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)
 		return
 	}
 
+	// every result row of this job (all collections together)
+	rows, err := mc.mutationResultRepository.GetAll(map[string]interface{}{"job_id": jobID})
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	// group scores by collection; keep a flat list to pick one job-wide range
+	scoresByMutation := map[primitive.ObjectID][]float64{}
+	allScores := make([]float64, 0, len(rows))
+	for _, r := range rows {
+		scoresByMutation[r.MutationId] = append(scoresByMutation[r.MutationId], float64(r.AssayScore))
+		allScores = append(allScores, float64(r.AssayScore))
+	}
+
+	// shared x-axis: one min/max for every collection so their bars line up
+	_, jobMin, jobMax, ok := histogram.Build(allScores)
+	if !ok {
+		apiutil.ApiResponseOk(c, []models.MutationHistogram{}) // no results yet
+		return
+	}
+
 	histograms := make([]models.MutationHistogram, 0, len(mutations))
 	for _, mutation := range mutations {
-		if len(mutation.HistogramData) != 0 {
-			histograms = append(histograms, models.MutationHistogram{
-				Name: mutation.Name,
-				Data: mutation.HistogramData,
-			})
+		scores, hasRows := scoresByMutation[mutation.Id]
+		if mutation.State != enum.MutationStateCompleted || !hasRows {
+			continue
 		}
+		histograms = append(histograms, models.MutationHistogram{
+			MutationId: mutation.Id,
+			Name:       mutation.Name,
+			Data:       histogram.BuildInRange(scores, jobMin, jobMax),
+			Min:        float32(jobMin),
+			Max:        float32(jobMax),
+		})
 	}
 
 	apiutil.ApiResponseOk(c, histograms)

@@ -33,7 +33,9 @@ type jobRepository struct {
 
 func NewJobRepository() JobRepository {
 	collection := database.GetCollection("jobs")
-	collection.Indexes().CreateOne(context.Background(), mongo.IndexModel{
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	collection.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.M{
 			"name": "text",
 		},
@@ -88,14 +90,17 @@ func (jr *jobRepository) GetAll(query map[string]interface{}) ([]*models.Job, er
 		options.SetSort(bson.D{{Key: "created_at", Value: -1}})
 	}
 
-	cursor, err := jr.collection.Find(context.Background(), filter, options)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	cursor, err := jr.collection.Find(ctx, filter, options)
 	if err != nil {
 		return nil, err
 	}
 
-	defer cursor.Close(context.Background())
+	defer cursor.Close(ctx)
 
-	for cursor.Next(context.Background()) {
+	for cursor.Next(ctx) {
 		var job models.Job
 		if err := cursor.Decode(&job); err != nil {
 			return nil, err
@@ -118,8 +123,11 @@ func (jr *jobRepository) FindById(id string) (*models.Job, error) {
 
 	filter := bson.M{"_id": objectId}
 
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
 	var job models.Job
-	err = jr.collection.FindOne(context.Background(), filter).Decode(&job)
+	err = jr.collection.FindOne(ctx, filter).Decode(&job)
 	if err != nil {
 		return nil, err
 	}
@@ -140,15 +148,18 @@ func (jr *jobRepository) FindRecent(userID string) (*models.RecentJob, error) {
 		"description": 1,
 	})
 
-	cursor, err := jr.collection.Find(context.Background(), filter, options)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	cursor, err := jr.collection.Find(ctx, filter, options)
 	if err != nil {
 		return nil, err
 	}
 
-	defer cursor.Close(context.Background())
+	defer cursor.Close(ctx)
 
 	var job models.RecentJob
-	if cursor.Next(context.Background()) {
+	if cursor.Next(ctx) {
 		if err := cursor.Decode(&job); err != nil {
 			return nil, err
 		}
@@ -167,7 +178,10 @@ func (jr *jobRepository) Create(job *models.Job) error {
 	job.RunTime = make(map[string]models.StageRunTime)
 	job.ErrorLogs = []models.ErrLog{}
 
-	_, err := jr.collection.InsertOne(context.Background(), job)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err := jr.collection.InsertOne(ctx, job)
 	if err != nil {
 		return err
 	}
@@ -201,7 +215,10 @@ func (jr *jobRepository) Update(id string, job *models.Job) error {
 		},
 	}
 
-	_, err = jr.collection.UpdateOne(context.Background(), filter, update)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err = jr.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return err
 	}
@@ -217,7 +234,10 @@ func (jr *jobRepository) Delete(id string) error {
 
 	filter := bson.M{"_id": objectId}
 
-	_, err = jr.collection.DeleteOne(context.Background(), filter)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err = jr.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -243,7 +263,10 @@ func (jr *jobRepository) AddErrorLog(id string, log string) error {
 		},
 	}
 
-	_, err = jr.collection.UpdateOne(context.Background(), filter, update)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err = jr.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		logger.Errorf("JobRepository: AddErrorLog: %s", err.Error())
 		return err

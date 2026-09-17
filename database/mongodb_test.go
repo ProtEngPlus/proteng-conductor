@@ -2,9 +2,17 @@ package database
 
 import (
 	"errors"
+	"os"
 	"testing"
 	"time"
+
+	"github.com/protengplus/proteng-conductor/internal/logger"
 )
+
+func TestMain(m *testing.M) {
+	logger.InitZap()
+	os.Exit(m.Run())
+}
 
 func TestConnectWithRetry_SucceedsFirstTry(t *testing.T) {
 	calls := 0

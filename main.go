@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/protengplus/proteng-conductor/apis/routes"
@@ -21,6 +25,9 @@ import (
 
 func main() {
 	logger.InitZap()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	config.AutomaticLoadEnv()
 
@@ -46,8 +53,10 @@ func main() {
 	rabbitConsumer := rmqConsumer.NewConsumer(conductor)
 
 	amqpURL := config.Config.RabbitMqUrl
+	consumerDone := make(chan struct{})
 	go func() {
-		err := rabbitConsumer.RunConsumer(amqpURL, config.Config.JobQueue)
+		defer close(consumerDone)
+		err := rabbitConsumer.RunConsumer(ctx, amqpURL, config.Config.JobQueue)
 		if err != nil {
 			logger.Fatalf("Error in RabbitMQ Consumer: %v", err)
 		}
@@ -81,10 +90,17 @@ func main() {
 	// start server
 	httpPort := config.Config.HttpPort
 	logger.Zap.Info("proteng-conductor is running on :" + httpPort)
-	err = router.Run(":" + httpPort)
-	if err != nil {
-		logger.Fatalf("Failed to start server: %v", err)
-	}
+
+	go func() {
+		if err := router.Run(":" + httpPort); err != nil {
+			logger.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	logger.Zap.Info("Shutdown signal received, waiting for consumer to finish...")
+	<-consumerDone
+	logger.Zap.Info("proteng-conductor stopped")
 }
 
 // TODO: Graceful shutdown

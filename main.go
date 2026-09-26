@@ -1,6 +1,12 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/protengplus/proteng-conductor/apis/routes"
@@ -21,6 +27,9 @@ import (
 
 func main() {
 	logger.InitZap()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	config.AutomaticLoadEnv()
 
@@ -46,8 +55,10 @@ func main() {
 	rabbitConsumer := rmqConsumer.NewConsumer(conductor)
 
 	amqpURL := config.Config.RabbitMqUrl
+	consumerDone := make(chan struct{})
 	go func() {
-		err := rabbitConsumer.RunConsumer(amqpURL, config.Config.JobQueue)
+		defer close(consumerDone)
+		err := rabbitConsumer.RunConsumer(ctx, amqpURL, config.Config.JobQueue)
 		if err != nil {
 			logger.Fatalf("Error in RabbitMQ Consumer: %v", err)
 		}
@@ -81,10 +92,32 @@ func main() {
 	// start server
 	httpPort := config.Config.HttpPort
 	logger.Zap.Info("proteng-conductor is running on :" + httpPort)
-	err = router.Run(":" + httpPort)
-	if err != nil {
-		logger.Fatalf("Failed to start server: %v", err)
-	}
-}
 
-// TODO: Graceful shutdown
+	srv := &http.Server{Addr: ":" + httpPort, Handler: router}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	logger.Zap.Info("Shutdown signal received, draining...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Errorf("HTTP server shutdown: %v", err)
+	}
+
+	select {
+	case <-consumerDone:
+	case <-shutdownCtx.Done():
+		logger.Errorf("Consumer did not stop before shutdown timeout")
+	}
+
+	if err := database.Client.Disconnect(shutdownCtx); err != nil {
+		logger.Errorf("MongoDB disconnect: %v", err)
+	}
+	logger.Zap.Info("proteng-conductor stopped")
+}

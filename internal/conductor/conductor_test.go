@@ -59,6 +59,29 @@ func TestConductor_getFirstMutation(t *testing.T) {
 	})
 }
 
+func TestCheckStage(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		jobStage int
+		msgStage int
+		want     stageCheck
+	}{
+		{"same stage", 1, 1, stageMatch},
+		{"message for a passed stage", 2, 0, stageStale},
+		{"message one stage behind", 3, 2, stageStale},
+		{"message for a future stage", 1, 3, stageAhead},
+		{"message one stage ahead", 0, 1, stageAhead},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(tt *testing.T) {
+			assert.Equal(tt, tc.want, checkStage(tc.jobStage, tc.msgStage))
+		})
+	}
+}
+
 type conductorDependencies struct {
 	jobRepository            *mock_repository.MockJobRepository
 	mutationRepository       *mock_repository.MockMutationRepository

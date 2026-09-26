@@ -229,6 +229,25 @@ func (con *conductor) OrchestrateJob(job *models.Job) error {
 	return nil
 }
 
+type stageCheck int
+
+const (
+	stageMatch stageCheck = iota
+	stageStale            // stage the job already passed
+	stageAhead            // stage the job has not reached
+)
+
+func checkStage(jobStage, msgStage int) stageCheck {
+	switch {
+	case msgStage == jobStage:
+		return stageMatch
+	case msgStage < jobStage:
+		return stageStale
+	default:
+		return stageAhead
+	}
+}
+
 func (con *conductor) updateJobData(data Data) *models.Job {
 	job, err := con.jobRepository.FindById(data.JobID)
 	if err != nil {

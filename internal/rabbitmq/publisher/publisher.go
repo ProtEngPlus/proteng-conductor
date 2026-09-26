@@ -2,13 +2,18 @@ package publisher
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
+
+const confirmTimeout = 5 * time.Second
 
 //go:generate mockgen -source=publisher.go -destination=mock_publisher/mock_publisher.go -package=mock_publisher
 
@@ -63,7 +68,12 @@ func (p *publisher) PublishDefaultExchange(ctx context.Context, queueName string
 	if err != nil {
 		return err
 	}
+
 	defer ch.Close()
+
+	if err := ch.Confirm(false); err != nil {
+		return err
+	}
 
 	q, err := ch.QueueDeclare(
 		queueName, // name
@@ -77,7 +87,7 @@ func (p *publisher) PublishDefaultExchange(ctx context.Context, queueName string
 		return err
 	}
 
-	err = ch.PublishWithContext(
+	dc, err := ch.PublishWithDeferredConfirmWithContext(
 		ctx,
 		"",     // exchange
 		q.Name, // routing key
@@ -92,7 +102,7 @@ func (p *publisher) PublishDefaultExchange(ctx context.Context, queueName string
 		return err
 	}
 
-	return nil
+	return waitForConfirm(ctx, dc, confirmTimeout)
 }
 
 func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, body []byte) error {
@@ -105,7 +115,12 @@ func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, bod
 	if err != nil {
 		return err
 	}
+
 	defer ch.Close()
+
+	if err := ch.Confirm(false); err != nil {
+		return err
+	}
 
 	err = ch.ExchangeDeclare(
 		"logs_topic", // name
@@ -120,7 +135,8 @@ func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, bod
 		return err
 	}
 
-	err = ch.PublishWithContext(ctx,
+	dc, err := ch.PublishWithDeferredConfirmWithContext(
+		ctx,
 		"logs_topic", // exchange
 		routingKey,   // routing key **change here to tool**
 		false,        // mandatory
@@ -134,5 +150,24 @@ func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, bod
 		return err
 	}
 
+	return waitForConfirm(ctx, dc, confirmTimeout)
+}
+
+type confirmation interface {
+	WaitContext(ctx context.Context) (bool, error)
+}
+
+// waitForConfirm returns nil when broker acked the publish before timeout
+func waitForConfirm(ctx context.Context, c confirmation, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	acked, err := c.WaitContext(ctx)
+	if err != nil {
+		return fmt.Errorf("wait for publish confirm: %w", err)
+	}
+	if !acked {
+		return errors.New("broker nacked the published message")
+	}
 	return nil
 }

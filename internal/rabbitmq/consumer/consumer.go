@@ -13,6 +13,12 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+const consumerTag = "conductor"
+
+type orchestrator interface {
+	Orchestrate(message string)
+}
+
 type Consumer struct {
 	conductor conductor.Conductor
 }
@@ -57,14 +63,20 @@ func (c *Consumer) RunConsumer(amqpURL string, queueName string) error {
 			continue
 		}
 
+		if err := ch.Qos(1, 0, false); err != nil {
+			logger.Errorf("Failed to set QoS: %v", err)
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
 		msgs, err := ch.Consume(
-			q.Name, // queue
-			"",     // consumer
-			true,   // auto-ack
-			false,  // exclusive
-			false,  // no-local
-			false,  // no-wait
-			nil,    // arguments
+			q.Name,      // queue
+			consumerTag, // consumer
+			false,       // auto-ack
+			false,       // exclusive
+			false,       // no-local
+			false,       // no-wait
+			nil,         // arguments
 		)
 		if err != nil {
 			logger.Errorf("Failed to register a consumer: %v", err)
@@ -76,8 +88,8 @@ func (c *Consumer) RunConsumer(amqpURL string, queueName string) error {
 
 		go func() {
 			for d := range msgs {
-				logger.Infof("JobConsumer: Received a message: %v from %v", string(d.Body), q.Name)
-				c.conductor.Orchestrate(string(d.Body))
+				logger.Infof("JobConsumer: Received a message (%d bytes) from %v", len(d.Body), q.Name)
+				c.handle(d)
 			}
 		}()
 
@@ -88,5 +100,22 @@ func (c *Consumer) RunConsumer(amqpURL string, queueName string) error {
 		logger.Zap.Info("Shutting down consumer...")
 		os.Exit(0)
 		return nil
+	}
+}
+
+func (c *Consumer) handle(d amqp.Delivery) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Errorf("JobConsumer: panic while processing message: %v", r)
+			if err := d.Nack(false, false); err != nil {
+				logger.Errorf("JobConsumer: failed to nack message: %v", err)
+			}
+		}
+	}()
+
+	c.conductor.Orchestrate(string(d.Body))
+
+	if err := d.Ack(false); err != nil {
+		logger.Errorf("JobConsumer: failed to ack message: %v", err)
 	}
 }

@@ -2,6 +2,7 @@ package publisher
 
 import (
 	"context"
+	"sync"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
@@ -12,6 +13,7 @@ import (
 //go:generate mockgen -source=publisher.go -destination=mock_publisher/mock_publisher.go -package=mock_publisher
 
 type publisher struct {
+	mu   sync.Mutex
 	conn *amqp.Connection
 }
 
@@ -35,28 +37,29 @@ func (p *publisher) newConnection() error {
 	return nil
 }
 
-func (p *publisher) ensureConnection() error {
-	if p.conn == nil {
-		return p.newConnection()
-	}
+func (p *publisher) ensureConnection() (*amqp.Connection, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	ch, err := p.conn.Channel()
-	if err != nil {
-		logger.Errorf("Publisher: Failed to open a channel: %v, renewing connection", err)
-		return p.newConnection()
+	if p.conn != nil && !p.conn.IsClosed() {
+		return p.conn, nil
 	}
-
-	ch.Close()
-	return nil
+	if p.conn != nil {
+		logger.Errorf("Publisher: connection closed, reconnecting")
+	}
+	if err := p.newConnection(); err != nil {
+		return nil, err
+	}
+	return p.conn, nil
 }
 
 func (p *publisher) PublishDefaultExchange(ctx context.Context, queueName string, body []byte) error {
-	err := p.ensureConnection()
+	conn, err := p.ensureConnection()
 	if err != nil {
 		return err
 	}
 
-	ch, err := p.conn.Channel()
+	ch, err := conn.Channel()
 	if err != nil {
 		return err
 	}
@@ -93,12 +96,12 @@ func (p *publisher) PublishDefaultExchange(ctx context.Context, queueName string
 }
 
 func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, body []byte) error {
-	err := p.ensureConnection()
+	conn, err := p.ensureConnection()
 	if err != nil {
 		return err
 	}
 
-	ch, err := p.conn.Channel()
+	ch, err := conn.Channel()
 	if err != nil {
 		return err
 	}

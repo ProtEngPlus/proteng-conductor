@@ -255,9 +255,23 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 		return nil
 	}
 
-	if data.StageID != job.StageId {
-		logger.Errorf("Conductor: updateJobData: Error JobID %s: stage mismatch", data.JobID)
-		con.jobRepository.AddErrorLog(data.JobID, "error: stage mismatch")
+	switch checkStage(job.StageId, data.StageID) {
+	case stageStale:
+		logger.Warnf("Conductor: updateJobData: JobID %s: ignoring stale message for stage %d, job is at stage %d", data.JobID, data.StageID, job.StageId)
+		con.jobRepository.AddErrorLog(data.JobID, fmt.Sprintf("warn: ignored stale message for stage %d", data.StageID))
+		return nil
+
+	case stageAhead:
+		logger.Errorf("Conductor: updateJobData: JobID %s: message for stage %d but job is at stage %d", data.JobID, data.StageID, job.StageId)
+		job.State = enum.JobStateFailed
+		if err := con.jobRepository.Update(data.JobID, job); err != nil {
+			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
+			return nil
+		}
+		con.jobRepository.AddErrorLog(data.JobID, fmt.Sprintf("error: message for stage %d but job is at stage %d", data.StageID, job.StageId))
+		if job.IsNotificationOn {
+			con.sendJobStatusNotificationEmail(job.UserId, job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
+		}
 		return nil
 	}
 

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -91,16 +93,31 @@ func main() {
 	httpPort := config.Config.HttpPort
 	logger.Zap.Info("proteng-conductor is running on :" + httpPort)
 
+	srv := &http.Server{Addr: ":" + httpPort, Handler: router}
 	go func() {
-		if err := router.Run(":" + httpPort); err != nil {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Fatalf("Failed to start server: %v", err)
 		}
 	}()
 
 	<-ctx.Done()
-	logger.Zap.Info("Shutdown signal received, waiting for consumer to finish...")
-	<-consumerDone
+	logger.Zap.Info("Shutdown signal received, draining...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Errorf("HTTP server shutdown: %v", err)
+	}
+
+	select {
+	case <-consumerDone:
+	case <-shutdownCtx.Done():
+		logger.Errorf("Consumer did not stop before shutdown timeout")
+	}
+
+	if err := database.Client.Disconnect(shutdownCtx); err != nil {
+		logger.Errorf("MongoDB disconnect: %v", err)
+	}
 	logger.Zap.Info("proteng-conductor stopped")
 }
-
-// TODO: Graceful shutdown

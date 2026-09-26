@@ -81,8 +81,9 @@ func (p *publisher) PublishDefaultExchange(ctx context.Context, queueName string
 		false,  // mandatory
 		false,  // immediate
 		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        body,
+			ContentType:  "text/plain",
+			DeliveryMode: amqp.Persistent,
+			Body:         body,
 		})
 	if err != nil {
 		return err
@@ -122,8 +123,9 @@ func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, bod
 		false,        // mandatory
 		false,        // immediate
 		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        []byte(body),
+			ContentType:  "text/plain",
+			DeliveryMode: amqp.Persistent,
+			Body:         body,
 		})
 	if err != nil {
 		return err

@@ -20,7 +20,7 @@ type orchestrator interface {
 }
 
 type Consumer struct {
-	conductor conductor.Conductor
+	conductor orchestrator
 }
 
 func NewConsumer(conductor conductor.Conductor) *Consumer {

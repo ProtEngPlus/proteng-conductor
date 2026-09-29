@@ -1,1 +1,8 @@
 *.sh text eol=lf
+# Keep Go sources and build files LF on Windows checkouts too, so `gofmt -l`
+# and bash do not trip over CRLF (see CONTRIBUTING of manual-guides-2023).
+*.go text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
+Makefile text eol=lf
+*.mk text eol=lf

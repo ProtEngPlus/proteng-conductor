@@ -1,7 +1,19 @@
 # proteng-conductor: drives the ML pipeline stage by stage and stores job state.
-# Run `make` to list targets. On Windows run it from Git Bash.
+# Run `make` to list targets. Works from Git Bash, cmd or PowerShell (needs Git for Windows).
 
+# On Windows, `bash` found from cmd or PowerShell is often the WSL launcher
+# (C:\Windows\System32\bash.exe), so use the bash that ships with Git for Windows.
+# Git's layout is <root>/mingw64/libexec/git-core and <root>/bin/bash.exe.
+ifeq ($(OS),Windows_NT)
+GIT_EXEC_PATH := $(shell git --exec-path)
+ifneq ($(findstring /mingw64/libexec/git-core,$(GIT_EXEC_PATH)),)
+SHELL := $(subst /mingw64/libexec/git-core,/bin/bash.exe,$(GIT_EXEC_PATH))
+else
 SHELL := bash
+endif
+else
+SHELL := bash
+endif
 .SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := help
 MAKEFLAGS += --no-print-directory

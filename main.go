@@ -50,8 +50,14 @@ func main() {
 	configurationRepository := repositories.NewConfigurationRepository()
 
 	// conductor
+	evaluationRunRepository := repositories.NewEvaluationRunRepository()
+	evaluationResultRepository, err := repositories.NewEvaluationResultRepository()
+	if err != nil {
+		logger.Fatalf("Failed to initialize Evaluation result repository: %v", err)
+	}
 	rabbitPublisher := rmqPublisher.NewPublisher()
-	conductor := conductor.NewConductor(jobRepository, mutationRepository, queryResultRepository, mutationResultRepository, rabbitPublisher)
+	conductor := conductor.NewConductor(jobRepository, mutationRepository, queryResultRepository, mutationResultRepository, rabbitPublisher,
+		conductor.WithEvaluationRepositories(evaluationRunRepository, evaluationResultRepository))
 	rabbitConsumer := rmqConsumer.NewConsumer(conductor)
 
 	amqpURL := config.Config.RabbitMqUrl

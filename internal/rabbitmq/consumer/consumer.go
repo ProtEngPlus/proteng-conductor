@@ -113,7 +113,17 @@ func (c *Consumer) handle(d amqp.Delivery) {
 		}
 	}()
 
-	c.conductor.Orchestrate(string(d.Body))
+	if receiver, ok := c.conductor.(interface{ OrchestrateWithError(string) error }); ok {
+		if err := receiver.OrchestrateWithError(string(d.Body)); err != nil {
+			logger.Errorf("JobConsumer: persistence failed, requeuing message: %v", err)
+			if nackErr := d.Nack(false, true); nackErr != nil {
+				logger.Errorf("JobConsumer: failed to nack message: %v", nackErr)
+			}
+			return
+		}
+	} else {
+		c.conductor.Orchestrate(string(d.Body))
+	}
 
 	if err := d.Ack(false); err != nil {
 		logger.Errorf("JobConsumer: failed to ack message: %v", err)

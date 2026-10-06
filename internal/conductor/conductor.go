@@ -3,6 +3,7 @@ package conductor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -15,11 +16,13 @@ import (
 )
 
 type conductor struct {
-	jobRepository            repositories.JobRepository
-	mutationRepository       repositories.MutationRepository
-	queryResultRepository    repositories.QueryResultRepository
-	mutationResultRepository repositories.MutationResultRepository
-	publisher                rmqPublisher.Publisher
+	jobRepository              repositories.JobRepository
+	mutationRepository         repositories.MutationRepository
+	queryResultRepository      repositories.QueryResultRepository
+	mutationResultRepository   repositories.MutationResultRepository
+	publisher                  rmqPublisher.Publisher
+	evaluationRunRepository    repositories.EvaluationRunRepository
+	evaluationResultRepository repositories.EvaluationResultRepository
 }
 
 type Conductor interface {
@@ -36,28 +39,49 @@ func NewConductor(
 	queryResultRepository repositories.QueryResultRepository,
 	mutationResultRepository repositories.MutationResultRepository,
 	publisher rmqPublisher.Publisher,
+	options ...Option,
 ) *conductor {
-	return &conductor{
+	con := &conductor{
 		jobRepository:            jobRepository,
 		mutationRepository:       mutationRepository,
 		queryResultRepository:    queryResultRepository,
 		mutationResultRepository: mutationResultRepository,
 		publisher:                publisher,
 	}
+	for _, option := range options {
+		option(con)
+	}
+	return con
 }
 
 func (con *conductor) Orchestrate(m string) {
+	if err := con.OrchestrateWithError(m); err != nil {
+		logger.Errorf("Conductor: Error processing mq payload: %v", err)
+	}
+}
+
+// OrchestrateWithError lets the consumer requeue Evaluation storage failures.
+// Existing stage 0-3 handling retains its current behavior.
+func (con *conductor) OrchestrateWithError(m string) error {
 	// Decode the incoming message
 	var payload Payload
 	if err := json.Unmarshal([]byte(m), &payload); err != nil {
 		logger.Errorf("Conductor: Error unmarshal mq payload: %v", err)
-		return
+		return nil
+	}
+	if payload.Data.StageID == EvaluationStageID {
+		err := con.receiveEvaluation(payload.Data)
+		if errors.Is(err, ErrInvalidEvaluation) {
+			logger.Warnf("Conductor: Ignoring invalid Evaluation callback: %v", err)
+			return nil
+		}
+		return err
 	}
 
 	// Update job data
 	job := con.updateJobData(payload.Data)
 	if job == nil || job.State != enum.JobStateOnGoing {
-		return
+		return nil
 	}
 
 	// Orchestrate next task
@@ -65,6 +89,7 @@ func (con *conductor) Orchestrate(m string) {
 	if err != nil {
 		logger.Errorf("Conductor: Error orchestrate job %s: %v", job.Id.Hex(), err)
 	}
+	return nil
 }
 
 // RunJob runs/retries a job

@@ -165,6 +165,12 @@ func (mc *MutationController) CreateMutation(c *gin.Context) {
 		return
 	}
 
+	err = validateServiceOptions(mutation.Tool, mutation.Options, mutation.InputProtein)
+	if err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
+		return
+	}
+
 	job, err := mc.jobRepository.FindById(mutation.JobId.Hex())
 	if err != nil {
 		apiutil.ApiResponseNotFound(c, err, "error: job is not found")

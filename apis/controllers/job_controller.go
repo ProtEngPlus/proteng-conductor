@@ -4,10 +4,8 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/xeipuuv/gojsonschema"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/conductor"
 	"github.com/protengplus/proteng-conductor/models"
 	"github.com/protengplus/proteng-conductor/repositories"
@@ -298,15 +296,8 @@ func validateJobOptions(job *models.Job) error {
 		if _, ok := job.Options[service]; !ok {
 			return fmt.Errorf("error: missing options for %s", service)
 		}
-		option := job.Options[service]
-		schemaLoader := gojsonschema.NewStringLoader(config.GetSchema(service))
-		optionLoader := gojsonschema.NewGoLoader(option)
-		result, err := gojsonschema.Validate(schemaLoader, optionLoader)
-		if err != nil {
+		if err := validateServiceOptions(service, job.Options[service], job.InputProtein); err != nil {
 			return err
-		}
-		if !result.Valid() {
-			return fmt.Errorf(result.Errors()[0].String())
 		}
 	}
 	return nil
@@ -317,15 +308,8 @@ func validateConfigurationOptions(configuration *models.Configuration) error {
 		if _, ok := configuration.Options[service]; !ok {
 			return fmt.Errorf("error: missing options for %s", service)
 		}
-		option := configuration.Options[service]
-		schemaLoader := gojsonschema.NewStringLoader(config.GetSchema(service))
-		optionLoader := gojsonschema.NewGoLoader(option)
-		result, err := gojsonschema.Validate(schemaLoader, optionLoader)
-		if err != nil {
+		if err := validateServiceOptions(service, configuration.Options[service], configuration.InputProtein); err != nil {
 			return err
-		}
-		if !result.Valid() {
-			return fmt.Errorf(result.Errors()[0].String())
 		}
 	}
 	return nil

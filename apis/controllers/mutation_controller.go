@@ -18,14 +18,15 @@ import (
 )
 
 type MutationController struct {
-	jobRepository            repositories.JobRepository
-	mutationRepository       repositories.MutationRepository
-	mutationResultRepository repositories.MutationResultRepository
-	conductor                conductor.Conductor
+	jobRepository                repositories.JobRepository
+	mutationRepository           repositories.MutationRepository
+	mutationResultRepository     repositories.MutationResultRepository
+	experimentalResultRepository repositories.ExperimentalResultRepository
+	conductor                    conductor.Conductor
 }
 
-func NewMutationController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, mutationResultRepository repositories.MutationResultRepository, conductor conductor.Conductor) *MutationController {
-	return &MutationController{jobRepository: jobRepository, mutationRepository: mutationRepository, mutationResultRepository: mutationResultRepository, conductor: conductor}
+func NewMutationController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, mutationResultRepository repositories.MutationResultRepository, experimentalResultRepository repositories.ExperimentalResultRepository, conductor conductor.Conductor) *MutationController {
+	return &MutationController{jobRepository: jobRepository, mutationRepository: mutationRepository, mutationResultRepository: mutationResultRepository, experimentalResultRepository: experimentalResultRepository, conductor: conductor}
 }
 
 // GetAllMutations retrieves all mutations
@@ -218,6 +219,11 @@ func (mc *MutationController) UpdateMutation(c *gin.Context) {
 // DeleteMutation deletes a mutation by ID
 func (mc *MutationController) DeleteMutation(c *gin.Context) {
 	id := c.Param("id")
+
+	if err := mc.experimentalResultRepository.DeleteByMutationId(id); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
 
 	if err := mc.mutationResultRepository.DeleteByMutationId(id); err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)

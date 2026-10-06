@@ -61,3 +61,14 @@ type MutationWithJobName struct {
 	CreatedAt      time.Time              `bson:"created_at" json:"created_at"`
 	CompleteAt     time.Time              `bson:"complete_at" json:"complete_at"`
 }
+
+type ExperimentalResult struct {
+	Id               primitive.ObjectID `bson:"_id" json:"id"`
+	MutationResultId primitive.ObjectID `bson:"mutation_result_id" json:"mutation_result_id"`
+	MutationId       primitive.ObjectID `bson:"mutation_id" json:"mutation_id"`
+	JobId            primitive.ObjectID `bson:"job_id" json:"job_id"`
+	UserId           string             `bson:"user_id" json:"user_id"`
+	ActualAssayScore float32            `bson:"actual_assay_score" json:"actual_assay_score"`
+	Note             string             `bson:"note" json:"note"`
+	MeasuredAt       time.Time          `bson:"measured_at" json:"measured_at"`
+}

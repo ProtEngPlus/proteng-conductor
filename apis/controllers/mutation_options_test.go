@@ -191,7 +191,8 @@ func newCreateMutationTest(t *testing.T) *createMutationTest {
 		conductor: &fakeConductor{},
 	}
 	results := mock_repository.NewMockMutationResultRepository(ctrl)
-	tc.controller = NewMutationController(tc.jobs, tc.mutations, results, tc.conductor)
+	experimentalResults := mock_repository.NewMockExperimentalResultRepository(ctrl)
+	tc.controller = NewMutationController(tc.jobs, tc.mutations, results, experimentalResults, tc.conductor)
 	return tc
 }
 

@@ -176,22 +176,24 @@ func (f *fakeConductor) RunMutation(mutation *models.Mutation) error {
 }
 
 type createMutationTest struct {
-	controller *MutationController
-	jobs       *mock_repository.MockJobRepository
-	mutations  *mock_repository.MockMutationRepository
-	conductor  *fakeConductor
+	controller         *MutationController
+	jobs               *mock_repository.MockJobRepository
+	mutations          *mock_repository.MockMutationRepository
+	experimentalResult *mock_repository.MockExperimentalResultRepository
+	conductor          *fakeConductor
 }
 
 func newCreateMutationTest(t *testing.T) *createMutationTest {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	tc := &createMutationTest{
-		jobs:      mock_repository.NewMockJobRepository(ctrl),
-		mutations: mock_repository.NewMockMutationRepository(ctrl),
-		conductor: &fakeConductor{},
+		jobs:               mock_repository.NewMockJobRepository(ctrl),
+		mutations:          mock_repository.NewMockMutationRepository(ctrl),
+		experimentalResult: mock_repository.NewMockExperimentalResultRepository(ctrl),
+		conductor:          &fakeConductor{},
 	}
 	results := mock_repository.NewMockMutationResultRepository(ctrl)
-	tc.controller = NewMutationController(tc.jobs, tc.mutations, results, tc.conductor)
+	tc.controller = NewMutationController(tc.jobs, tc.mutations, results, tc.experimentalResult, tc.conductor)
 	return tc
 }
 

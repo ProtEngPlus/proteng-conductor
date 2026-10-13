@@ -158,14 +158,17 @@ func (qr *queryResultRepository) GetAll(query map[string]interface{}) ([]*models
 		{Key: "complete_at", Value: bson.D{{Key: "$first", Value: "$complete_at"}}},
 	}}})
 
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
 	var results []*models.QueryResult
-	cursor, err := qr.collection.Aggregate(context.Background(), pipeline)
+	cursor, err := qr.collection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
-	defer cursor.Close(context.Background())
+	defer cursor.Close(ctx)
 
-	for cursor.Next(context.Background()) {
+	for cursor.Next(ctx) {
 		var queryResult models.QueryResult
 		if err := cursor.Decode(&queryResult); err != nil {
 			return nil, err
@@ -184,8 +187,11 @@ func (qr *queryResultRepository) FindById(id string) (*models.QueryResult, error
 
 	filter := bson.M{"_id": objectId}
 
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
 	var query_result models.QueryResult
-	err = qr.collection.FindOne(context.Background(), filter).Decode(&query_result)
+	err = qr.collection.FindOne(ctx, filter).Decode(&query_result)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +223,10 @@ func (qr *queryResultRepository) Create(query_result *models.QueryResult) error 
 		query_result.RunId = thisJobQueryResults[0].RunId + 1
 	}
 
-	_, err = qr.collection.InsertOne(context.Background(), query_result)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err = qr.collection.InsertOne(ctx, query_result)
 	if err != nil {
 		return err
 	}
@@ -240,7 +249,10 @@ func (qr *queryResultRepository) Update(id string, query_result *models.QueryRes
 		},
 	}
 
-	_, err = qr.collection.UpdateOne(context.Background(), filter, update)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err = qr.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return err
 	}
@@ -256,7 +268,10 @@ func (qr *queryResultRepository) DeleteByJobId(jobId string) error {
 
 	filter := bson.M{"job_id": objectId}
 
-	_, err = qr.collection.DeleteMany(context.Background(), filter)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err = qr.collection.DeleteMany(ctx, filter)
 	if err != nil {
 		return err
 	}

@@ -2,6 +2,10 @@ package publisher
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/logger"
@@ -9,9 +13,12 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+const confirmTimeout = 5 * time.Second
+
 //go:generate mockgen -source=publisher.go -destination=mock_publisher/mock_publisher.go -package=mock_publisher
 
 type publisher struct {
+	mu   sync.Mutex
 	conn *amqp.Connection
 }
 
@@ -35,32 +42,38 @@ func (p *publisher) newConnection() error {
 	return nil
 }
 
-func (p *publisher) ensureConnection() error {
-	if p.conn == nil {
-		return p.newConnection()
-	}
+func (p *publisher) ensureConnection() (*amqp.Connection, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	ch, err := p.conn.Channel()
-	if err != nil {
-		logger.Errorf("Publisher: Failed to open a channel: %v, renewing connection", err)
-		return p.newConnection()
+	if p.conn != nil && !p.conn.IsClosed() {
+		return p.conn, nil
 	}
-
-	ch.Close()
-	return nil
+	if p.conn != nil {
+		logger.Errorf("Publisher: connection closed, reconnecting")
+	}
+	if err := p.newConnection(); err != nil {
+		return nil, err
+	}
+	return p.conn, nil
 }
 
 func (p *publisher) PublishDefaultExchange(ctx context.Context, queueName string, body []byte) error {
-	err := p.ensureConnection()
+	conn, err := p.ensureConnection()
 	if err != nil {
 		return err
 	}
 
-	ch, err := p.conn.Channel()
+	ch, err := conn.Channel()
 	if err != nil {
 		return err
 	}
+
 	defer ch.Close()
+
+	if err := ch.Confirm(false); err != nil {
+		return err
+	}
 
 	q, err := ch.QueueDeclare(
 		queueName, // name
@@ -74,34 +87,40 @@ func (p *publisher) PublishDefaultExchange(ctx context.Context, queueName string
 		return err
 	}
 
-	err = ch.PublishWithContext(
+	dc, err := ch.PublishWithDeferredConfirmWithContext(
 		ctx,
 		"",     // exchange
 		q.Name, // routing key
 		false,  // mandatory
 		false,  // immediate
 		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        body,
+			ContentType:  "text/plain",
+			DeliveryMode: amqp.Persistent,
+			Body:         body,
 		})
 	if err != nil {
 		return err
 	}
 
-	return nil
+	return waitForConfirm(ctx, dc, confirmTimeout)
 }
 
 func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, body []byte) error {
-	err := p.ensureConnection()
+	conn, err := p.ensureConnection()
 	if err != nil {
 		return err
 	}
 
-	ch, err := p.conn.Channel()
+	ch, err := conn.Channel()
 	if err != nil {
 		return err
 	}
+
 	defer ch.Close()
+
+	if err := ch.Confirm(false); err != nil {
+		return err
+	}
 
 	err = ch.ExchangeDeclare(
 		"logs_topic", // name
@@ -116,18 +135,39 @@ func (p *publisher) PublishWithTopic(ctx context.Context, routingKey string, bod
 		return err
 	}
 
-	err = ch.PublishWithContext(ctx,
+	dc, err := ch.PublishWithDeferredConfirmWithContext(
+		ctx,
 		"logs_topic", // exchange
 		routingKey,   // routing key **change here to tool**
 		false,        // mandatory
 		false,        // immediate
 		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        []byte(body),
+			ContentType:  "text/plain",
+			DeliveryMode: amqp.Persistent,
+			Body:         body,
 		})
 	if err != nil {
 		return err
 	}
 
+	return waitForConfirm(ctx, dc, confirmTimeout)
+}
+
+type confirmation interface {
+	WaitContext(ctx context.Context) (bool, error)
+}
+
+// waitForConfirm returns nil when broker acked the publish before timeout
+func waitForConfirm(ctx context.Context, c confirmation, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	acked, err := c.WaitContext(ctx)
+	if err != nil {
+		return fmt.Errorf("wait for publish confirm: %w", err)
+	}
+	if !acked {
+		return errors.New("broker nacked the published message")
+	}
 	return nil
 }

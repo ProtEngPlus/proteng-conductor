@@ -161,17 +161,42 @@ var Schemas = map[string]string{
                     "type": "integer"
                 },
                 "num_trajectories": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 },
-                "mutate_pos_range": {
-                    "type": "integer"
+                "mutate_regions": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "items": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "items": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                },
+                "num_mutations_low": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "num_mutations_high": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "amino_acid_set": {
+                    "type": "string",
+                    "enum": ["20 standard", "20 standard + U"]
                 }
             },
             "required": [
                 "temperature",
                 "num_iterations",
                 "num_trajectories",
-                "mutate_pos_range"
+                "num_mutations_low",
+                "num_mutations_high",
+                "amino_acid_set"
             ]
         }`,
 }

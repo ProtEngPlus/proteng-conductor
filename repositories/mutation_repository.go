@@ -73,14 +73,17 @@ func (mr *mutationRepository) GetAll(query map[string]interface{}) ([]*models.Mu
 		options.SetSort(bson.D{{Key: "run_id", Value: -1}})
 	}
 
-	cursor, err := mr.collection.Find(context.Background(), filter, options)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	cursor, err := mr.collection.Find(ctx, filter, options)
 	if err != nil {
 		return nil, err
 	}
 
-	defer cursor.Close(context.Background())
+	defer cursor.Close(ctx)
 
-	for cursor.Next(context.Background()) {
+	for cursor.Next(ctx) {
 		var mutation models.Mutation
 		if err := cursor.Decode(&mutation); err != nil {
 			return nil, err
@@ -103,8 +106,11 @@ func (mr *mutationRepository) FindById(id string) (*models.Mutation, error) {
 
 	filter := bson.M{"_id": objectId}
 
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
 	var mutation models.Mutation
-	err = mr.collection.FindOne(context.Background(), filter).Decode(&mutation)
+	err = mr.collection.FindOne(ctx, filter).Decode(&mutation)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +139,10 @@ func (mr *mutationRepository) Create(mutation *models.Mutation) error {
 		mutation.RunId = thisJobMutations[0].RunId + 1
 	}
 
-	_, err = mr.collection.InsertOne(context.Background(), mutation)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err = mr.collection.InsertOne(ctx, mutation)
 	if err != nil {
 		return err
 	}
@@ -161,7 +170,10 @@ func (mr *mutationRepository) Update(id string, mutation *models.Mutation) error
 		},
 	}
 
-	_, err = mr.collection.UpdateOne(context.Background(), filter, update)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err = mr.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return err
 	}
@@ -177,7 +189,10 @@ func (mr *mutationRepository) Delete(id string) error {
 
 	filter := bson.M{"_id": objectId}
 
-	_, err = mr.collection.DeleteOne(context.Background(), filter)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err = mr.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -193,7 +208,10 @@ func (mr *mutationRepository) DeleteByJobId(jobId string) error {
 
 	filter := bson.M{"job_id": objectId}
 
-	_, err = mr.collection.DeleteMany(context.Background(), filter)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err = mr.collection.DeleteMany(ctx, filter)
 	if err != nil {
 		return err
 	}

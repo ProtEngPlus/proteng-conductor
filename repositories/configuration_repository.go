@@ -40,14 +40,17 @@ func (cr *configurationRepository) GetAll(query map[string]interface{}) ([]*mode
 		}
 	}
 
-	cursor, err := cr.collection.Find(context.Background(), filter)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	cursor, err := cr.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
 
-	defer cursor.Close(context.Background())
+	defer cursor.Close(ctx)
 
-	for cursor.Next(context.Background()) {
+	for cursor.Next(ctx) {
 		var configuration models.Configuration
 		if err := cursor.Decode(&configuration); err != nil {
 			return nil, err
@@ -65,7 +68,10 @@ func (cr *configurationRepository) GetAll(query map[string]interface{}) ([]*mode
 func (cr *configurationRepository) Create(configuration *models.Configuration) error {
 	configuration.Id = primitive.NewObjectID()
 
-	_, err := cr.collection.InsertOne(context.Background(), configuration)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err := cr.collection.InsertOne(ctx, configuration)
 	if err != nil {
 		return err
 	}
@@ -81,7 +87,10 @@ func (cr *configurationRepository) DeleteByJobId(jobId string) error {
 
 	filter := bson.M{"ref_job_id": objectId}
 
-	_, err = cr.collection.DeleteMany(context.Background(), filter)
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err = cr.collection.DeleteMany(ctx, filter)
 	if err != nil {
 		return err
 	}

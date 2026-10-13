@@ -61,3 +61,17 @@ func ApiResponseNotFound(c *gin.Context, err error, messages ...string) {
 		Message: messages[0],
 	})
 }
+
+func ApiResponseForbidden(c *gin.Context, err error, messages ...string) {
+	if len(messages) == 0 {
+		messages = append(messages, "")
+	}
+	if err == nil {
+		err = fmt.Errorf("forbidden")
+	}
+	c.JSON(http.StatusForbidden, models.HttpResponseError{
+		Code:    http.StatusForbidden,
+		Error:   err.Error(),
+		Message: messages[0],
+	})
+}

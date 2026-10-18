@@ -115,4 +115,29 @@ func TestValidateJob(t *testing.T) {
 		err := job.Validate(false)
 		assert.NotNil(t, err)
 	})
+
+	t.Run("no evaluation plugins keeps a job valid", func(t *testing.T) {
+		job := Job{
+			Name:         "test",
+			UserId:       "test",
+			Options:      map[string]interface{}{"a": 1},
+			InputProtein: "test",
+			RunType:      "auto",
+		}
+		err := job.Validate(false)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid empty evaluation plugin name", func(t *testing.T) {
+		job := Job{
+			Name:              "test",
+			UserId:            "test",
+			Options:           map[string]interface{}{"a": 1},
+			InputProtein:      "test",
+			RunType:           "auto",
+			EvaluationPlugins: []string{""},
+		}
+		err := job.Validate(false)
+		assert.NotNil(t, err)
+	})
 }

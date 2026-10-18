@@ -157,6 +157,11 @@ func (jc *JobController) CreateJob(c *gin.Context) {
 		return
 	}
 
+	if err := validateEvaluationPlugins(job.EvaluationPlugins); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid evaluation plugins")
+		return
+	}
+
 	err = jc.jobRepository.Create(&job)
 	if err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)
@@ -326,6 +331,11 @@ func (jc *JobController) CreateConfigurations(c *gin.Context) {
 	err = validateConfigurationOptions(&configuration)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
+		return
+	}
+
+	if err := validateEvaluationPlugins(configuration.EvaluationPlugins); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid evaluation plugins")
 		return
 	}
 

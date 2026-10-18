@@ -160,6 +160,100 @@ func TestConductor_updateJobData_stageMismatch(t *testing.T) {
 	})
 }
 
+func TestConductor_updateMutationData_redelivery(t *testing.T) {
+	t.Parallel()
+
+	newJob := func() *models.Job {
+		return &models.Job{
+			Id:      primitive.NewObjectID(),
+			UserId:  "user-1",
+			State:   enum.JobStateOnGoing,
+			StageId: 3,
+			RunTime: map[string]models.StageRunTime{},
+		}
+	}
+	newMutation := func(jobID primitive.ObjectID, state enum.MutationState) *models.Mutation {
+		return &models.Mutation{
+			Id:           primitive.NewObjectID(),
+			JobId:        jobID,
+			RunId:        1,
+			InputProtein: "AAAA",
+			State:        state,
+		}
+	}
+
+	for _, state := range []enum.MutationState{enum.MutationStateCompleted, enum.MutationStateFailed} {
+		t.Run("message for a "+string(state)+" mutation is ignored", func(tt *testing.T) {
+			conductor, deps, finish := newTestConductor(tt)
+			defer finish()
+
+			job := newJob()
+			mutation := newMutation(job.Id, state)
+			deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil)
+			deps.mutationRepository.EXPECT().FindById(mutation.Id.Hex()).Return(mutation, nil)
+			// no Create, Delete or Update: gomock fails the test on unexpected calls
+
+			conductor.updateMutationData(Data{
+				JobID:          job.Id.Hex(),
+				MutationID:     mutation.Id.Hex(),
+				StageID:        3,
+				Status:         "COMPLETED",
+				MutationResult: map[string]float32{"AAAC": 0.5},
+			})
+
+			assert.Equal(tt, enum.JobStateOnGoing, job.State)
+		})
+	}
+
+	t.Run("results of an ongoing mutation replace earlier partial results", func(tt *testing.T) {
+		conductor, deps, finish := newTestConductor(tt)
+		defer finish()
+
+		job := newJob()
+		mutation := newMutation(job.Id, enum.MutationStateOnGoing)
+		deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil)
+		deps.mutationRepository.EXPECT().FindById(mutation.Id.Hex()).Return(mutation, nil)
+		gomock.InOrder(
+			deps.mutationResultRepository.EXPECT().DeleteByMutationId(mutation.Id.Hex()).Return(nil),
+			deps.mutationResultRepository.EXPECT().Create(gomock.Any()).Return(nil).Times(2),
+		)
+		deps.mutationRepository.EXPECT().Update(mutation.Id.Hex(), gomock.Any()).Return(nil)
+		deps.jobRepository.EXPECT().Update(job.Id.Hex(), gomock.Any()).Return(nil)
+
+		conductor.updateMutationData(Data{
+			JobID:          job.Id.Hex(),
+			MutationID:     mutation.Id.Hex(),
+			StageID:        3,
+			Status:         "COMPLETED",
+			MutationResult: map[string]float32{"AAAC": 0.5, "AACA": 0.7},
+		})
+
+		assert.Equal(tt, enum.MutationStateCompleted, mutation.State)
+		assert.Equal(tt, enum.JobStateCompleted, job.State)
+	})
+
+	t.Run("failing to clear earlier results stores nothing", func(tt *testing.T) {
+		conductor, deps, finish := newTestConductor(tt)
+		defer finish()
+
+		job := newJob()
+		mutation := newMutation(job.Id, enum.MutationStateOnGoing)
+		deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil)
+		deps.mutationRepository.EXPECT().FindById(mutation.Id.Hex()).Return(mutation, nil)
+		deps.mutationResultRepository.EXPECT().DeleteByMutationId(mutation.Id.Hex()).Return(assert.AnError)
+
+		conductor.updateMutationData(Data{
+			JobID:          job.Id.Hex(),
+			MutationID:     mutation.Id.Hex(),
+			StageID:        3,
+			Status:         "COMPLETED",
+			MutationResult: map[string]float32{"AAAC": 0.5},
+		})
+
+		assert.Equal(tt, enum.JobStateOnGoing, job.State)
+	})
+}
+
 type conductorDependencies struct {
 	jobRepository            *mock_repository.MockJobRepository
 	mutationRepository       *mock_repository.MockMutationRepository

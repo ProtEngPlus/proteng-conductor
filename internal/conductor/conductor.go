@@ -473,6 +473,14 @@ func (con *conductor) updateMutationData(data Data) {
 		return
 	}
 
+	// A redelivered message for a mutation that already finished must not store
+	// its results or change the job a second time. Retries set the mutation back
+	// to ongoing before dispatch, so a real result never arrives for a finished one.
+	if mutation.State == enum.MutationStateCompleted || mutation.State == enum.MutationStateFailed {
+		logger.Warnf("Conductor: updateMutationData: JobID %s: ignoring result for mutation %s, it is already %s", data.JobID, data.MutationID, mutation.State)
+		return
+	}
+
 	if data.Status == string(enum.JobStateFailed) {
 		mutation.State = enum.MutationStateFailed
 		logger.Infof("Conductor: updateMutationData: Mutation %s failed: %v", data.JobID, data.Error)
@@ -491,6 +499,14 @@ func (con *conductor) updateMutationData(data Data) {
 
 	mutation.State = enum.MutationStateCompleted
 	mutation.CompleteAt = time.Now()
+
+	// An earlier delivery that stopped half way may have stored some results.
+	// The mutation is not completed yet, so nothing (bookmarks, wet-lab scores)
+	// can reference them; clear them so each sequence is stored exactly once.
+	if err := con.mutationResultRepository.DeleteByMutationId(data.MutationID); err != nil {
+		logger.Errorf("Conductor: updateMutationData: Failed to clear earlier results of mutation %s: %v", data.MutationID, err)
+		return
+	}
 
 	// save each mutated sequence and its predicted score
 	for protein_sequence, assay_score := range data.MutationResult {

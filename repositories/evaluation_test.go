@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"testing"
+	"time"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/database"
@@ -81,6 +82,26 @@ func TestEvaluationRepositories(t *testing.T) {
 		mt.AddMockResponses(mtest.CreateSuccessResponse(bson.E{Key: "n", Value: 0}))
 		require.Error(mt, r.Finish(id, models.EvaluationFailed, "late"))
 		require.Error(mt, r.Finish(id, models.EvaluationOngoing, ""))
+	})
+	mt.Run("find stale ongoing runs", func(mt *mtest.T) {
+		r := &evaluationRunRepository{collection: mt.Coll}
+		cutoff := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+		run := &models.EvaluationRun{Id: primitive.NewObjectID(), JobId: primitive.NewObjectID(), State: models.EvaluationOngoing}
+		encoded, err := bson.Marshal(run)
+		require.NoError(mt, err)
+		var doc bson.D
+		require.NoError(mt, bson.Unmarshal(encoded, &doc))
+		mt.AddMockResponses(mtest.CreateCursorResponse(0, mt.DB.Name()+".evaluation_runs", mtest.FirstBatch, doc))
+		runs, err := r.FindStale(cutoff)
+		require.NoError(mt, err)
+		require.Len(mt, runs, 1)
+		require.Equal(mt, run.Id, runs[0].Id)
+		filter := mt.GetStartedEvent().Command.Lookup("filter").Document()
+		require.Equal(mt, "ONGOING", filter.Lookup("state").StringValue())
+		require.Equal(mt, cutoff, filter.Lookup("created_at").Document().Lookup("$lt").Time().UTC())
+		mt.AddMockResponses(mtest.CreateCommandErrorResponse(mtest.CommandError{Code: 2, Message: "bad query"}))
+		_, err = r.FindStale(cutoff)
+		require.Error(mt, err)
 	})
 	mt.Run("upsert identity and generic values", func(mt *mtest.T) {
 		r := &evaluationResultRepository{collection: mt.Coll}

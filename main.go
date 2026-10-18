@@ -71,6 +71,13 @@ func main() {
 		}
 	}()
 
+	// fail evaluation runs that never got a result, so their jobs do not stay ongoing
+	sweeperDone := make(chan struct{})
+	go func() {
+		defer close(sweeperDone)
+		conductor.RunEvaluationSweeper(ctx)
+	}()
+
 	// storage service
 	storageService := storage.NewStorageService()
 
@@ -122,6 +129,11 @@ func main() {
 	case <-consumerDone:
 	case <-shutdownCtx.Done():
 		logger.Errorf("Consumer did not stop before shutdown timeout")
+	}
+	select {
+	case <-sweeperDone:
+	case <-shutdownCtx.Done():
+		logger.Errorf("Evaluation sweeper did not stop before shutdown timeout")
 	}
 
 	if err := database.Client.Disconnect(shutdownCtx); err != nil {

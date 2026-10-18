@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/protengplus/proteng-conductor/models"
@@ -18,12 +19,22 @@ type memoryEvaluationRuns struct {
 	run       *models.EvaluationRun
 	findErr   error
 	finishErr error
+	staleErr  error
 	finishes  int
 }
 
 func (r *memoryEvaluationRuns) Create(run *models.EvaluationRun) error { r.run = run; return nil }
 func (r *memoryEvaluationRuns) FindById(string) (*models.EvaluationRun, error) {
 	return r.run, r.findErr
+}
+func (r *memoryEvaluationRuns) FindStale(createdBefore time.Time) ([]*models.EvaluationRun, error) {
+	if r.staleErr != nil {
+		return nil, r.staleErr
+	}
+	if r.run == nil || r.run.State != models.EvaluationOngoing || !r.run.CreatedAt.Before(createdBefore) {
+		return nil, nil
+	}
+	return []*models.EvaluationRun{r.run}, nil
 }
 func (r *memoryEvaluationRuns) Finish(_ primitive.ObjectID, state models.EvaluationState, message string) error {
 	r.finishes++

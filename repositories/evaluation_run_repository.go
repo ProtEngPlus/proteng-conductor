@@ -16,6 +16,7 @@ type EvaluationRunRepository interface {
 	Create(run *models.EvaluationRun) error
 	FindById(id string) (*models.EvaluationRun, error)
 	Finish(id primitive.ObjectID, state models.EvaluationState, message string) error
+	FindStale(createdBefore time.Time) ([]*models.EvaluationRun, error)
 }
 
 type evaluationRunRepository struct {
@@ -75,4 +76,22 @@ func (r *evaluationRunRepository) Finish(id primitive.ObjectID, state models.Eva
 		return fmt.Errorf("evaluation run is no longer ongoing")
 	}
 	return nil
+}
+
+// FindStale returns runs that are still ongoing but were created before the cutoff.
+func (r *evaluationRunRepository) FindStale(createdBefore time.Time) ([]*models.EvaluationRun, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	cursor, err := r.collection.Find(ctx, bson.M{
+		"state":      models.EvaluationOngoing,
+		"created_at": bson.M{"$lt": createdBefore.UTC()},
+	})
+	if err != nil {
+		return nil, err
+	}
+	var runs []*models.EvaluationRun
+	if err := cursor.All(ctx, &runs); err != nil {
+		return nil, err
+	}
+	return runs, nil
 }

@@ -1,4 +1,7 @@
-// evaluation-smoke runs the Phase 3.2 round trip on local, isolated services.
+// evaluation-smoke runs BLX01 round trips on local, isolated services.
+//
+//	-flow evaluation  Phase 3.2: a registered run is dispatched by the smoke itself
+//	-flow mutation    Phase 4: mutation result -> evaluation -> job completed
 package main
 
 import (
@@ -32,9 +35,19 @@ const smokeDB = "blx01_smoke"
 func main() {
 	mongoURI := flag.String("mongo-uri", "mongodb://127.0.0.1:27018", "local smoke MongoDB")
 	amqpURL := flag.String("rabbitmq-url", "amqp://guest:guest@127.0.0.1:5674/", "local smoke RabbitMQ")
+	flow := flag.String("flow", "evaluation", "evaluation (Phase 3.2) or mutation (Phase 4)")
 	flag.Parse()
 	logger.InitZap()
-	if err := runSmoke(*mongoURI, *amqpURL); err != nil {
+	run := runSmoke
+	switch *flow {
+	case "evaluation":
+	case "mutation":
+		run = runMutationFlowSmoke
+	default:
+		fmt.Fprintln(os.Stderr, "unknown -flow, use evaluation or mutation")
+		os.Exit(2)
+	}
+	if err := run(*mongoURI, *amqpURL); err != nil {
 		fmt.Fprintln(os.Stderr, "Smoke test failed:", err)
 		os.Exit(1)
 	}

@@ -53,6 +53,7 @@ func (r *memoryEvaluationResults) UpsertAll(results []*models.EvaluationResult) 
 
 type evaluationFixture struct {
 	con        *conductor
+	deps       *conductorDependencies
 	runs       *memoryEvaluationRuns
 	results    *memoryEvaluationResults
 	job        *models.Job
@@ -70,7 +71,7 @@ func newEvaluationFixture(t *testing.T) *evaluationFixture {
 		MutationResultIds: ids, Plugins: []string{"mock"}, State: models.EvaluationOngoing,
 	}
 	f := &evaluationFixture{
-		con: con, runs: &memoryEvaluationRuns{run: run},
+		con: con, deps: deps, runs: &memoryEvaluationRuns{run: run},
 		results:    &memoryEvaluationResults{items: make(map[primitive.ObjectID]*models.EvaluationResult)},
 		job:        &models.Job{Id: jobID, UserId: "owner", StageId: 3, State: enum.JobStateCompleted},
 		candidates: make(map[string]*models.MutationResult),
@@ -91,7 +92,8 @@ func newEvaluationFixture(t *testing.T) *evaluationFixture {
 		}
 		return result, nil
 	}).AnyTimes()
-	// No Update or publish expectations: Evaluation must leave the parent pipeline alone.
+	// No Update or publish expectations: a job that is not waiting at stage 3
+	// (the fixture job is already COMPLETED) must be left alone.
 	return f
 }
 

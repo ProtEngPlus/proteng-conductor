@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/protengplus/proteng-conductor/models"
+	"github.com/protengplus/proteng-conductor/models/enum"
 	"github.com/protengplus/proteng-conductor/repositories"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -25,8 +27,9 @@ func WithEvaluationRepositories(runs repositories.EvaluationRunRepository, resul
 	}
 }
 
-// receiveEvaluation handles registered, manually dispatched single-plugin runs.
-// It never changes the parent job or dispatches the next pipeline stage.
+// receiveEvaluation stores a plugin's results for a registered single-plugin run.
+// When the run finishes it completes the parent job if that job is still waiting
+// at stage 3 for it; a failed plugin never fails the job.
 func (con *conductor) receiveEvaluation(data Data) error {
 	if con.evaluationRunRepository == nil || con.evaluationResultRepository == nil {
 		return fmt.Errorf("evaluation persistence is not configured")
@@ -56,7 +59,9 @@ func (con *conductor) receiveEvaluation(data Data) error {
 		return fmt.Errorf("%w: run, job, or plugin mismatch", ErrInvalidEvaluation)
 	}
 	if run.State == models.EvaluationCompleted || run.State == models.EvaluationFailed {
-		return nil // Redelivery, including a late conflicting terminal event.
+		// Redelivery, including a late conflicting terminal event. The job update
+		// may not have happened before a crash, so finish it again if needed.
+		return con.completeEvaluatedJob(run)
 	}
 	if run.State != models.EvaluationOngoing {
 		return fmt.Errorf("%w: run is not ongoing", ErrInvalidEvaluation)
@@ -124,6 +129,33 @@ func (con *conductor) receiveEvaluation(data Data) error {
 	}
 	if err := con.evaluationRunRepository.Finish(run.Id, models.EvaluationState(data.Status), data.Error); err != nil {
 		return fmt.Errorf("finish evaluation run: %w", err)
+	}
+	return con.completeEvaluatedJob(run)
+}
+
+// completeEvaluatedJob completes a job that waits at stage 3 for its evaluation.
+// Jobs in any other state are left alone, so a repeated call changes nothing.
+// A failed update returns an error so the message is retried.
+func (con *conductor) completeEvaluatedJob(run *models.EvaluationRun) error {
+	job, err := con.jobRepository.FindById(run.JobId.Hex())
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil // the job was deleted; nothing is waiting for this run
+	}
+	if err != nil {
+		return fmt.Errorf("find evaluated job: %w", err)
+	}
+	if job == nil || job.State != enum.JobStateOnGoing || job.StageId != 3 {
+		return nil
+	}
+	job.State = enum.JobStateCompleted
+	if job.CompleteAt.IsZero() {
+		job.CompleteAt = time.Now()
+	}
+	if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
+		return fmt.Errorf("complete evaluated job: %w", err)
+	}
+	if job.IsNotificationOn && job.StageId < len(job.Meta) {
+		con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateCompleted, job.StageId, job.Meta[job.StageId])
 	}
 	return nil
 }

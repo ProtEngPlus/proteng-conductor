@@ -182,3 +182,55 @@ func TestUpdateJobData_mutationEmails(t *testing.T) {
 		require.Nil(tt, f.con.updateJobData(f.data))
 	})
 }
+
+func TestEvaluationCompletesWaitingJob(t *testing.T) {
+	for _, status := range []string{"COMPLETED", "FAILED"} {
+		t.Run("plugin "+status+" completes the job", func(tt *testing.T) {
+			f := newEvaluationFixture(tt)
+			f.job.State = enum.JobStateOnGoing
+			if status == "FAILED" {
+				f.data.Status, f.data.Error, f.data.EvaluationResults = "FAILED", "mock failed", nil
+			}
+			f.deps.jobRepository.EXPECT().Update(f.job.Id.Hex(), gomock.Any()).Return(nil)
+
+			require.NoError(tt, f.con.OrchestrateWithError(f.message(tt)))
+
+			require.Equal(tt, models.EvaluationState(status), f.runs.run.State)
+			require.Equal(tt, enum.JobStateCompleted, f.job.State)
+			require.Equal(tt, 3, f.job.StageId)
+			require.False(tt, f.job.CompleteAt.IsZero())
+		})
+	}
+
+	t.Run("completed job is emailed once", func(tt *testing.T) {
+		f := newEvaluationFixture(tt)
+		f.job.State = enum.JobStateOnGoing
+		f.job.IsNotificationOn = true
+		f.job.Meta = []string{"blast", "unirep", "ridgecv", "mutation"}
+		f.deps.jobRepository.EXPECT().Update(f.job.Id.Hex(), gomock.Any()).Return(nil)
+		f.deps.publisher.EXPECT().
+			PublishDefaultExchange(gomock.Any(), "job_status_email_notification", gomock.Any()).
+			Return(nil)
+
+		require.NoError(tt, f.con.OrchestrateWithError(f.message(tt)))
+		require.NoError(tt, f.con.OrchestrateWithError(f.message(tt))) // redelivery: no second email
+		require.Equal(tt, enum.JobStateCompleted, f.job.State)
+	})
+
+	t.Run("failed job update is retried by the redelivered message", func(tt *testing.T) {
+		f := newEvaluationFixture(tt)
+		f.job.State = enum.JobStateOnGoing
+		failure := errors.New("database unavailable")
+		gomock.InOrder(
+			f.deps.jobRepository.EXPECT().Update(f.job.Id.Hex(), gomock.Any()).
+				DoAndReturn(func(_ string, j *models.Job) error { j.State = enum.JobStateOnGoing; return failure }),
+			f.deps.jobRepository.EXPECT().Update(f.job.Id.Hex(), gomock.Any()).Return(nil),
+		)
+
+		require.ErrorIs(tt, f.con.OrchestrateWithError(f.message(tt)), failure)
+		require.Equal(tt, models.EvaluationCompleted, f.runs.run.State)
+		require.NoError(tt, f.con.OrchestrateWithError(f.message(tt)))
+		require.Equal(tt, enum.JobStateCompleted, f.job.State)
+		require.Equal(tt, 1, f.results.writes)
+	})
+}

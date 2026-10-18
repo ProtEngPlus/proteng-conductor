@@ -17,7 +17,7 @@ const (
 )
 
 // EvaluationRun snapshots the candidates so callbacks cannot add unrelated mutants.
-// Phase 3.2 registers one plugin; sequencing multiple plugins is a later phase.
+// Its plugins run one at a time in order; CurrentPluginIndex is the running one.
 type EvaluationRun struct {
 	Id                 primitive.ObjectID   `bson:"_id" json:"id"`
 	JobId              primitive.ObjectID   `bson:"job_id" json:"job_id"`
@@ -25,10 +25,14 @@ type EvaluationRun struct {
 	MutationResultIds  []primitive.ObjectID `bson:"mutation_result_ids" json:"mutation_result_ids"`
 	Plugins            []string             `bson:"plugins" json:"plugins"`
 	CurrentPluginIndex int                  `bson:"current_plugin_index" json:"current_plugin_index"`
-	State              EvaluationState      `bson:"state" json:"state"`
-	Error              string               `bson:"error" json:"error"`
-	CreatedAt          time.Time            `bson:"created_at" json:"created_at"`
-	CompleteAt         time.Time            `bson:"complete_at" json:"complete_at"`
+	// PluginStartedAt is when the current plugin was dispatched; the timeout counts from it.
+	PluginStartedAt time.Time `bson:"plugin_started_at" json:"plugin_started_at"`
+	// PluginErrors lists "plugin: reason" for every plugin that failed so far.
+	PluginErrors []string        `bson:"plugin_errors,omitempty" json:"plugin_errors,omitempty"`
+	State        EvaluationState `bson:"state" json:"state"`
+	Error        string          `bson:"error" json:"error"`
+	CreatedAt    time.Time       `bson:"created_at" json:"created_at"`
+	CompleteAt   time.Time       `bson:"complete_at" json:"complete_at"`
 }
 
 type EvaluationResult struct {
@@ -47,8 +51,18 @@ func (run *EvaluationRun) Validate() error {
 	if run == nil || run.JobId.IsZero() || run.MutationId.IsZero() {
 		return fmt.Errorf("evaluation run requires job and mutation IDs")
 	}
-	if len(run.Plugins) != 1 || strings.TrimSpace(run.Plugins[0]) == "" || run.CurrentPluginIndex != 0 {
-		return fmt.Errorf("phase 3.2 requires exactly one plugin at index zero")
+	if len(run.Plugins) == 0 {
+		return fmt.Errorf("evaluation run requires at least one plugin")
+	}
+	plugins := make(map[string]bool, len(run.Plugins))
+	for _, plugin := range run.Plugins {
+		if strings.TrimSpace(plugin) == "" || plugins[plugin] {
+			return fmt.Errorf("evaluation plugins must be nonempty and unique")
+		}
+		plugins[plugin] = true
+	}
+	if run.CurrentPluginIndex < 0 || run.CurrentPluginIndex >= len(run.Plugins) {
+		return fmt.Errorf("evaluation current plugin index is out of range")
 	}
 	if len(run.MutationResultIds) == 0 {
 		return fmt.Errorf("evaluation run requires candidates")
@@ -61,4 +75,27 @@ func (run *EvaluationRun) Validate() error {
 		seen[id] = true
 	}
 	return nil
+}
+
+// PluginIndex returns the position of a plugin in the run, or -1.
+func (run *EvaluationRun) PluginIndex(plugin string) int {
+	for i, p := range run.Plugins {
+		if p == plugin {
+			return i
+		}
+	}
+	return -1
+}
+
+// CurrentPlugin is the plugin that is running now.
+func (run *EvaluationRun) CurrentPlugin() string {
+	if run.CurrentPluginIndex < 0 || run.CurrentPluginIndex >= len(run.Plugins) {
+		return ""
+	}
+	return run.Plugins[run.CurrentPluginIndex]
+}
+
+// IsLastPlugin reports whether the current plugin is the run's last one.
+func (run *EvaluationRun) IsLastPlugin() bool {
+	return run.CurrentPluginIndex >= len(run.Plugins)-1
 }

@@ -27,9 +27,9 @@ func WithEvaluationRepositories(runs repositories.EvaluationRunRepository, resul
 	}
 }
 
-// receiveEvaluation stores a plugin's results for a registered single-plugin run.
-// When the run finishes it completes the parent job if that job is still waiting
-// at stage 3 for it; a failed plugin never fails the job.
+// receiveEvaluation stores the results of a run's current plugin, then dispatches
+// the next plugin, or finishes the run and completes the parent job when it was
+// the last one. A failed plugin never fails the job or stops the other plugins.
 func (con *conductor) receiveEvaluation(data Data) error {
 	if con.evaluationRunRepository == nil || con.evaluationResultRepository == nil {
 		return fmt.Errorf("evaluation persistence is not configured")
@@ -55,7 +55,8 @@ func (con *conductor) receiveEvaluation(data Data) error {
 	if err := run.Validate(); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidEvaluation, err)
 	}
-	if run.Id != runID || run.JobId != jobID || run.Plugins[0] != data.Plugin {
+	pluginIndex := run.PluginIndex(data.Plugin)
+	if run.Id != runID || run.JobId != jobID || pluginIndex < 0 {
 		return fmt.Errorf("%w: run, job, or plugin mismatch", ErrInvalidEvaluation)
 	}
 	if run.State == models.EvaluationCompleted || run.State == models.EvaluationFailed {
@@ -65,6 +66,12 @@ func (con *conductor) receiveEvaluation(data Data) error {
 	}
 	if run.State != models.EvaluationOngoing {
 		return fmt.Errorf("%w: run is not ongoing", ErrInvalidEvaluation)
+	}
+	if pluginIndex < run.CurrentPluginIndex {
+		return nil // redelivery of a plugin the run has already moved past
+	}
+	if pluginIndex > run.CurrentPluginIndex {
+		return fmt.Errorf("%w: plugin %s is not running yet", ErrInvalidEvaluation, data.Plugin)
 	}
 	job, err := con.jobRepository.FindById(jobID.Hex())
 	if errors.Is(err, mongo.ErrNoDocuments) {
@@ -95,6 +102,7 @@ func (con *conductor) receiveEvaluation(data Data) error {
 		return fmt.Errorf("%w: failure requires an error and no results", ErrInvalidEvaluation)
 	}
 	results := make([]*models.EvaluationResult, 0, len(run.MutationResultIds))
+	candidates := make([]*models.MutationResult, 0, len(run.MutationResultIds))
 	for _, id := range run.MutationResultIds {
 		if data.Status == string(models.EvaluationCompleted) {
 			if _, ok := values[id]; !ok {
@@ -111,6 +119,7 @@ func (con *conductor) receiveEvaluation(data Data) error {
 		if candidate == nil || candidate.Id != id || candidate.JobId != run.JobId || candidate.MutationId != run.MutationId || candidate.UserId != job.UserId {
 			return fmt.Errorf("%w: candidate belongs to another job, mutation, or user", ErrInvalidEvaluation)
 		}
+		candidates = append(candidates, candidate)
 		resultValues := values[id]
 		if resultValues == nil {
 			resultValues = map[string]interface{}{}
@@ -127,10 +136,64 @@ func (con *conductor) receiveEvaluation(data Data) error {
 	if err := con.evaluationResultRepository.UpsertAll(results); err != nil {
 		return fmt.Errorf("save evaluation results: %w", err)
 	}
-	if err := con.evaluationRunRepository.Finish(run.Id, models.EvaluationState(data.Status), data.Error); err != nil {
+	pluginError := ""
+	if data.Status == string(models.EvaluationFailed) {
+		pluginError = data.Plugin + ": " + data.Error
+	}
+	return con.moveToNextPlugin(job, run, candidates, pluginError)
+}
+
+// moveToNextPlugin ends the run's current plugin, recording pluginError when it
+// failed. It dispatches the next plugin, or finishes the run and completes the
+// job when no plugin is left. A run already moved on by another delivery or by
+// the sweeper is left alone.
+func (con *conductor) moveToNextPlugin(job *models.Job, run *models.EvaluationRun, candidates []*models.MutationResult, pluginError string) error {
+	if !run.IsLastPlugin() {
+		if err := con.advanceRun(run, pluginError); err != nil {
+			if errors.Is(err, repositories.ErrEvaluationRunChanged) {
+				return nil
+			}
+			return fmt.Errorf("advance evaluation run: %w", err)
+		}
+		dispatched, err := con.dispatchCurrentPlugin(job, run, candidates)
+		if err != nil || dispatched {
+			return err
+		}
+		return con.completeEvaluatedJob(run) // no later plugin could be dispatched
+	}
+	if err := con.finishRun(run, pluginError); err != nil {
+		if errors.Is(err, repositories.ErrEvaluationRunChanged) {
+			return con.completeEvaluatedJob(run)
+		}
 		return fmt.Errorf("finish evaluation run: %w", err)
 	}
 	return con.completeEvaluatedJob(run)
+}
+
+// advanceRun moves the run to its next plugin and mirrors the change locally.
+func (con *conductor) advanceRun(run *models.EvaluationRun, pluginError string) error {
+	if err := con.evaluationRunRepository.Advance(run.Id, run.CurrentPluginIndex, pluginError); err != nil {
+		return err
+	}
+	if pluginError != "" {
+		run.PluginErrors = append(run.PluginErrors, pluginError)
+	}
+	run.CurrentPluginIndex++
+	return nil
+}
+
+// finishRun ends the run after its last plugin: COMPLETED when every plugin
+// succeeded, otherwise FAILED with the reason of each failed plugin.
+func (con *conductor) finishRun(run *models.EvaluationRun, pluginError string) error {
+	errs := append([]string{}, run.PluginErrors...)
+	if pluginError != "" {
+		errs = append(errs, pluginError)
+	}
+	state, message := models.EvaluationCompleted, ""
+	if len(errs) > 0 {
+		state, message = models.EvaluationFailed, strings.Join(errs, "; ")
+	}
+	return con.evaluationRunRepository.Finish(run.Id, state, message)
 }
 
 // completeEvaluatedJob completes a job that waits at stage 3 for its evaluation.

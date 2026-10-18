@@ -10,31 +10,59 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/protengplus/proteng-conductor/models"
 	"github.com/protengplus/proteng-conductor/models/enum"
+	"github.com/protengplus/proteng-conductor/repositories"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type memoryEvaluationRuns struct {
-	run       *models.EvaluationRun
-	findErr   error
-	finishErr error
-	staleErr  error
-	finishes  int
+	run        *models.EvaluationRun
+	findErr    error
+	finishErr  error
+	staleErr   error
+	advanceErr error
+	finishes   int
+	advances   int
 }
 
-func (r *memoryEvaluationRuns) Create(run *models.EvaluationRun) error { r.run = run; return nil }
-func (r *memoryEvaluationRuns) FindById(string) (*models.EvaluationRun, error) {
-	return r.run, r.findErr
+func (r *memoryEvaluationRuns) Create(run *models.EvaluationRun) error {
+	copied := *run
+	copied.State = models.EvaluationOngoing
+	r.run = &copied
+	return nil
 }
-func (r *memoryEvaluationRuns) FindStale(createdBefore time.Time) ([]*models.EvaluationRun, error) {
+func (r *memoryEvaluationRuns) FindById(string) (*models.EvaluationRun, error) {
+	if r.run == nil || r.findErr != nil {
+		return r.run, r.findErr
+	}
+	copied := *r.run
+	return &copied, nil
+}
+func (r *memoryEvaluationRuns) FindStale(pluginStartedBefore time.Time) ([]*models.EvaluationRun, error) {
 	if r.staleErr != nil {
 		return nil, r.staleErr
 	}
-	if r.run == nil || r.run.State != models.EvaluationOngoing || !r.run.CreatedAt.Before(createdBefore) {
+	if r.run == nil || r.run.State != models.EvaluationOngoing || !r.run.PluginStartedAt.Before(pluginStartedBefore) {
 		return nil, nil
 	}
-	return []*models.EvaluationRun{r.run}, nil
+	copied := *r.run
+	return []*models.EvaluationRun{&copied}, nil
+}
+func (r *memoryEvaluationRuns) Advance(_ primitive.ObjectID, fromIndex int, pluginError string) error {
+	if r.advanceErr != nil {
+		return r.advanceErr
+	}
+	if r.run.State != models.EvaluationOngoing || r.run.CurrentPluginIndex != fromIndex {
+		return repositories.ErrEvaluationRunChanged
+	}
+	r.advances++
+	r.run.CurrentPluginIndex = fromIndex + 1
+	r.run.PluginStartedAt = time.Now()
+	if pluginError != "" {
+		r.run.PluginErrors = append(r.run.PluginErrors, pluginError)
+	}
+	return nil
 }
 func (r *memoryEvaluationRuns) Finish(_ primitive.ObjectID, state models.EvaluationState, message string) error {
 	r.finishes++

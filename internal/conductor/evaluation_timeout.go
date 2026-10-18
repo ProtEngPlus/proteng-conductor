@@ -38,27 +38,43 @@ func (con *conductor) RunEvaluationSweeper(ctx context.Context) {
 	}
 }
 
-// sweepStaleEvaluations fails every ongoing run created before the cutoff and
-// completes its job. A run that a worker finished meanwhile is skipped, because
-// Finish only changes ongoing runs; a later callback for a failed run is ignored.
-func (con *conductor) sweepStaleEvaluations(createdBefore time.Time) error {
-	runs, err := con.evaluationRunRepository.FindStale(createdBefore)
+// sweepStaleEvaluations treats the current plugin of every run that waited past
+// the cutoff as failed and moves the run on: the next plugin is dispatched, or
+// the run is finished and its job completed. A late callback from a timed-out
+// plugin is ignored, because the run has moved past it.
+func (con *conductor) sweepStaleEvaluations(pluginStartedBefore time.Time) error {
+	runs, err := con.evaluationRunRepository.FindStale(pluginStartedBefore)
 	if err != nil {
 		return fmt.Errorf("find stale evaluation runs: %w", err)
 	}
 	for _, run := range runs {
-		plugin := ""
-		if run.CurrentPluginIndex < len(run.Plugins) {
-			plugin = run.Plugins[run.CurrentPluginIndex]
-		}
-		message := fmt.Sprintf("timed out: no result from evaluation.%s within %s", plugin, evaluationTimeout)
-		if err := con.evaluationRunRepository.Finish(run.Id, models.EvaluationFailed, message); err != nil {
-			logger.Warnf("Conductor: evaluation sweeper: run %s not failed: %v", run.Id.Hex(), err)
+		pluginError := fmt.Sprintf("%s: timed out: no result from evaluation.%s within %s",
+			run.CurrentPlugin(), run.CurrentPlugin(), evaluationTimeout)
+		job, candidates, err := con.evaluationContext(run)
+		if err != nil {
+			logger.Errorf("Conductor: evaluation sweeper: run %s: %v", run.Id.Hex(), err)
 			continue
 		}
-		if err := con.completeEvaluatedJob(run); err != nil {
+		if err := con.moveToNextPlugin(job, run, candidates, pluginError); err != nil {
 			logger.Errorf("Conductor: evaluation sweeper: run %s: %v", run.Id.Hex(), err)
 		}
 	}
 	return nil
+}
+
+// evaluationContext loads what dispatching the run's next plugin needs.
+func (con *conductor) evaluationContext(run *models.EvaluationRun) (*models.Job, []*models.MutationResult, error) {
+	job, err := con.jobRepository.FindById(run.JobId.Hex())
+	if err != nil {
+		return nil, nil, fmt.Errorf("find job: %w", err)
+	}
+	candidates := make([]*models.MutationResult, 0, len(run.MutationResultIds))
+	for _, id := range run.MutationResultIds {
+		candidate, err := con.mutationResultRepository.FindById(id.Hex())
+		if err != nil {
+			return nil, nil, fmt.Errorf("find candidate %s: %w", id.Hex(), err)
+		}
+		candidates = append(candidates, candidate)
+	}
+	return job, candidates, nil
 }

@@ -17,7 +17,7 @@ func TestSweepStaleEvaluations(t *testing.T) {
 	t.Run("stale run fails and completes its job", func(tt *testing.T) {
 		f := newEvaluationFixture(tt)
 		f.job.State = enum.JobStateOnGoing
-		f.runs.run.CreatedAt = cutoff.Add(-time.Minute)
+		f.runs.run.PluginStartedAt = cutoff.Add(-time.Minute)
 		f.deps.jobRepository.EXPECT().Update(f.job.Id.Hex(), gomock.Any()).Return(nil)
 
 		require.NoError(tt, f.con.sweepStaleEvaluations(cutoff))
@@ -31,7 +31,7 @@ func TestSweepStaleEvaluations(t *testing.T) {
 	t.Run("recent run is left alone", func(tt *testing.T) {
 		f := newEvaluationFixture(tt)
 		f.job.State = enum.JobStateOnGoing
-		f.runs.run.CreatedAt = cutoff.Add(time.Minute)
+		f.runs.run.PluginStartedAt = cutoff.Add(time.Minute)
 		// no Update expected
 
 		require.NoError(tt, f.con.sweepStaleEvaluations(cutoff))
@@ -43,7 +43,7 @@ func TestSweepStaleEvaluations(t *testing.T) {
 	t.Run("late callback after the timeout changes nothing", func(tt *testing.T) {
 		f := newEvaluationFixture(tt)
 		f.job.State = enum.JobStateOnGoing
-		f.runs.run.CreatedAt = cutoff.Add(-time.Minute)
+		f.runs.run.PluginStartedAt = cutoff.Add(-time.Minute)
 		f.deps.jobRepository.EXPECT().Update(f.job.Id.Hex(), gomock.Any()).Return(nil)
 		require.NoError(tt, f.con.sweepStaleEvaluations(cutoff))
 

@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -16,8 +17,13 @@ type EvaluationRunRepository interface {
 	Create(run *models.EvaluationRun) error
 	FindById(id string) (*models.EvaluationRun, error)
 	Finish(id primitive.ObjectID, state models.EvaluationState, message string) error
-	FindStale(createdBefore time.Time) ([]*models.EvaluationRun, error)
+	FindStale(pluginStartedBefore time.Time) ([]*models.EvaluationRun, error)
+	Advance(id primitive.ObjectID, fromIndex int, pluginError string) error
 }
+
+// ErrEvaluationRunChanged means a guarded update found the run already finished
+// or moved past the expected plugin, so another delivery handled it first.
+var ErrEvaluationRunChanged = errors.New("evaluation run already moved on")
 
 type evaluationRunRepository struct {
 	collection *mongo.Collection
@@ -37,6 +43,7 @@ func (r *evaluationRunRepository) Create(run *models.EvaluationRun) error {
 	run.State = models.EvaluationOngoing
 	run.Error = ""
 	run.CreatedAt = time.Now().UTC()
+	run.PluginStartedAt = run.CreatedAt
 	run.CompleteAt = time.Time{}
 	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
 	defer cancel()
@@ -73,18 +80,41 @@ func (r *evaluationRunRepository) Finish(id primitive.ObjectID, state models.Eva
 		return err
 	}
 	if result.MatchedCount == 0 {
-		return fmt.Errorf("evaluation run is no longer ongoing")
+		return fmt.Errorf("evaluation run is no longer ongoing: %w", ErrEvaluationRunChanged)
 	}
 	return nil
 }
 
-// FindStale returns runs that are still ongoing but were created before the cutoff.
-func (r *evaluationRunRepository) FindStale(createdBefore time.Time) ([]*models.EvaluationRun, error) {
+// Advance moves an ongoing run from plugin fromIndex to the next one, recording
+// why the plugin failed when pluginError is set. It changes nothing when the run
+// is finished or already past fromIndex, so a redelivery cannot skip a plugin.
+func (r *evaluationRunRepository) Advance(id primitive.ObjectID, fromIndex int, pluginError string) error {
+	update := bson.M{"$set": bson.M{"current_plugin_index": fromIndex + 1, "plugin_started_at": time.Now().UTC()}}
+	if pluginError != "" {
+		update["$push"] = bson.M{"plugin_errors": pluginError}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	result, err := r.collection.UpdateOne(ctx,
+		bson.M{"_id": id, "state": models.EvaluationOngoing, "current_plugin_index": fromIndex},
+		update,
+	)
+	if err != nil {
+		return err
+	}
+	if result.MatchedCount == 0 {
+		return ErrEvaluationRunChanged
+	}
+	return nil
+}
+
+// FindStale returns ongoing runs whose current plugin was dispatched before the cutoff.
+func (r *evaluationRunRepository) FindStale(pluginStartedBefore time.Time) ([]*models.EvaluationRun, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
 	defer cancel()
 	cursor, err := r.collection.Find(ctx, bson.M{
-		"state":      models.EvaluationOngoing,
-		"created_at": bson.M{"$lt": createdBefore.UTC()},
+		"state":             models.EvaluationOngoing,
+		"plugin_started_at": bson.M{"$lt": pluginStartedBefore.UTC()},
 	})
 	if err != nil {
 		return nil, err

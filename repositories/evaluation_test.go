@@ -54,6 +54,7 @@ func TestEvaluationRepositories(t *testing.T) {
 		require.False(mt, run.Id.IsZero())
 		require.Equal(mt, models.EvaluationOngoing, run.State)
 		require.False(mt, run.CreatedAt.IsZero())
+		require.Equal(mt, run.CreatedAt, run.PluginStartedAt)
 		mt.GetStartedEvent() // insert
 		encoded, err := bson.Marshal(run)
 		require.NoError(mt, err)
@@ -98,10 +99,26 @@ func TestEvaluationRepositories(t *testing.T) {
 		require.Equal(mt, run.Id, runs[0].Id)
 		filter := mt.GetStartedEvent().Command.Lookup("filter").Document()
 		require.Equal(mt, "ONGOING", filter.Lookup("state").StringValue())
-		require.Equal(mt, cutoff, filter.Lookup("created_at").Document().Lookup("$lt").Time().UTC())
+		require.Equal(mt, cutoff, filter.Lookup("plugin_started_at").Document().Lookup("$lt").Time().UTC())
 		mt.AddMockResponses(mtest.CreateCommandErrorResponse(mtest.CommandError{Code: 2, Message: "bad query"}))
 		_, err = r.FindStale(cutoff)
 		require.Error(mt, err)
+	})
+	mt.Run("advance is guarded by state and index", func(mt *mtest.T) {
+		r := &evaluationRunRepository{collection: mt.Coll}
+		id := primitive.NewObjectID()
+		mt.AddMockResponses(mtest.CreateSuccessResponse(bson.E{Key: "n", Value: 1}, bson.E{Key: "nModified", Value: 1}))
+		require.NoError(mt, r.Advance(id, 0, "mock: failed"))
+		update := mt.GetStartedEvent().Command.Lookup("updates").Array().Index(0).Value().Document()
+		q := update.Lookup("q").Document()
+		require.Equal(mt, id, q.Lookup("_id").ObjectID())
+		require.Equal(mt, "ONGOING", q.Lookup("state").StringValue())
+		require.Equal(mt, int32(0), q.Lookup("current_plugin_index").Int32())
+		u := update.Lookup("u").Document()
+		require.Equal(mt, int32(1), u.Lookup("$set").Document().Lookup("current_plugin_index").Int32())
+		require.Equal(mt, "mock: failed", u.Lookup("$push").Document().Lookup("plugin_errors").StringValue())
+		mt.AddMockResponses(mtest.CreateSuccessResponse(bson.E{Key: "n", Value: 0}))
+		require.ErrorIs(mt, r.Advance(id, 0, ""), ErrEvaluationRunChanged)
 	})
 	mt.Run("upsert identity and generic values", func(mt *mtest.T) {
 		r := &evaluationResultRepository{collection: mt.Coll}

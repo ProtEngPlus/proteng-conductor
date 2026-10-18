@@ -3,11 +3,13 @@ package conductor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/protengplus/proteng-conductor/internal/logger"
 	"github.com/protengplus/proteng-conductor/models"
 	"github.com/protengplus/proteng-conductor/models/enum"
+	"github.com/protengplus/proteng-conductor/repositories"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -73,8 +75,8 @@ func (con *conductor) resumeEvaluation(job *models.Job, mutation *models.Mutatio
 }
 
 // startEvaluation registers an evaluation run for the selected mutants and sends
-// it to the run's current plugin. A run that cannot be dispatched is finished as
-// failed, so it never stays ongoing without a worker.
+// it to the run's first plugin. It returns an error when no plugin could be
+// dispatched; the run is then finished as failed, so it never stays ongoing.
 func (con *conductor) startEvaluation(job *models.Job, mutation *models.Mutation, results []*models.MutationResult) error {
 	if con.evaluationRunRepository == nil {
 		return fmt.Errorf("evaluation persistence is not configured")
@@ -94,15 +96,42 @@ func (con *conductor) startEvaluation(job *models.Job, mutation *models.Mutation
 	if err := con.evaluationRunRepository.Create(run); err != nil {
 		return fmt.Errorf("create evaluation run: %w", err)
 	}
-	body, err := json.Marshal(evaluationRequest(job, run, candidates))
-	if err == nil {
-		err = con.publisher.PublishWithTopic(context.Background(), "evaluation."+run.Plugins[run.CurrentPluginIndex], body)
-	}
+	dispatched, err := con.dispatchCurrentPlugin(job, run, candidates)
 	if err != nil {
-		if finishErr := con.evaluationRunRepository.Finish(run.Id, models.EvaluationFailed, "dispatch failed: "+err.Error()); finishErr != nil {
-			logger.Errorf("Conductor: startEvaluation: Failed to finish evaluation run %s: %v", run.Id.Hex(), finishErr)
-		}
-		return fmt.Errorf("dispatch evaluation run %s: %w", run.Id.Hex(), err)
+		return err
+	}
+	if !dispatched {
+		return fmt.Errorf("no plugin of evaluation run %s could be dispatched", run.Id.Hex())
 	}
 	return nil
+}
+
+// dispatchCurrentPlugin sends the run to its current plugin. A plugin that cannot
+// be reached counts as failed, and the next one is tried; after the last one the
+// run is finished. It reports whether some plugin received the run.
+func (con *conductor) dispatchCurrentPlugin(job *models.Job, run *models.EvaluationRun, candidates []*models.MutationResult) (bool, error) {
+	for {
+		plugin := run.CurrentPlugin()
+		body, err := json.Marshal(evaluationRequest(job, run, candidates))
+		if err == nil {
+			err = con.publisher.PublishWithTopic(context.Background(), "evaluation."+plugin, body)
+		}
+		if err == nil {
+			return true, nil
+		}
+		pluginError := fmt.Sprintf("%s: dispatch failed: %v", plugin, err)
+		logger.Errorf("Conductor: evaluation run %s: %s", run.Id.Hex(), pluginError)
+		if run.IsLastPlugin() {
+			if finishErr := con.finishRun(run, pluginError); finishErr != nil && !errors.Is(finishErr, repositories.ErrEvaluationRunChanged) {
+				logger.Errorf("Conductor: Failed to finish evaluation run %s: %v", run.Id.Hex(), finishErr)
+			}
+			return false, nil
+		}
+		if err := con.advanceRun(run, pluginError); err != nil {
+			if errors.Is(err, repositories.ErrEvaluationRunChanged) {
+				return true, nil // another delivery or the sweeper already moved it on
+			}
+			return false, fmt.Errorf("advance evaluation run: %w", err)
+		}
+	}
 }

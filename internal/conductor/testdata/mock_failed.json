@@ -1,0 +1,13 @@
+{
+  "service_name": "mock-evaluation",
+  "timestamp": "2026-09-29T12:59:00+00:00",
+  "data": {
+    "job_id": "650000000000000000000001",
+    "stage_id": 4,
+    "status": "FAILED",
+    "evaluation_run_id": "650000000000000000000002",
+    "plugin": "mock",
+    "evaluation_results": [],
+    "error": "forced fixture failure"
+  }
+}

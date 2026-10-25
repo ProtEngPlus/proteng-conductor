@@ -184,10 +184,6 @@ var Schemas = map[string]string{
                 "num_mutations_high": {
                     "type": "integer",
                     "minimum": 1
-                },
-                "amino_acid_set": {
-                    "type": "string",
-                    "enum": ["20 standard", "20 standard + U"]
                 }
             },
             "required": [
@@ -195,8 +191,7 @@ var Schemas = map[string]string{
                 "num_iterations",
                 "num_trajectories",
                 "num_mutations_low",
-                "num_mutations_high",
-                "amino_acid_set"
+                "num_mutations_high"
             ]
         }`,
 }

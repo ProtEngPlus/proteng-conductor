@@ -272,3 +272,30 @@ func TestConductor_updateJobData_notification(t *testing.T) {
 		conductor.updateJobData(Data{JobID: job.Id.Hex(), StageID: 1, Status: "COMPLETED"})
 	})
 }
+
+func TestShouldNotify(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		on      bool
+		runType string
+		state   enum.JobState
+		want    bool
+	}{
+		{"off never emails", false, "one-step", enum.JobStateFailed, false},
+		{"one-step emails when waiting for the next step", true, "one-step", enum.JobStatePending, true},
+		{"one-step emails on completion", true, "one-step", enum.JobStateCompleted, true},
+		{"one-step emails on failure", true, "one-step", enum.JobStateFailed, true},
+		{"auto skips stages still running", true, "auto", enum.JobStateOnGoing, false},
+		{"auto emails on completion", true, "auto", enum.JobStateCompleted, true},
+		{"auto emails on failure", true, "auto", enum.JobStateFailed, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(tt *testing.T) {
+			job := &models.Job{IsNotificationOn: tc.on, RunType: tc.runType}
+			assert.Equal(tt, tc.want, shouldNotify(job, tc.state))
+		})
+	}
+}

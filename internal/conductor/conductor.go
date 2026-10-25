@@ -269,9 +269,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 			return nil
 		}
 		con.jobRepository.AddErrorLog(data.JobID, fmt.Sprintf("error: message for stage %d but job is at stage %d", data.StageID, job.StageId))
-		if job.IsNotificationOn {
-			con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
-		}
+		con.notifyJobStatus(job, enum.JobStateFailed)
 		return nil
 	}
 
@@ -289,10 +287,8 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	}
 
 	if data.StageID == 3 {
-		con.updateMutationData(data)
-		// Send email notification considering notification settings
-		if job.IsNotificationOn {
-			con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateCompleted, job.StageId, job.Meta[job.StageId])
+		if state := con.updateMutationData(data); state != "" {
+			con.notifyJobStatus(job, state)
 		}
 		return nil
 	}
@@ -300,10 +296,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	if data.Status == string(enum.JobStateFailed) {
 		job.State = enum.JobStateFailed
 		logger.Infof("Conductor: updateJobData: Job %s failed %v", data.JobID, data.Error)
-		// Send email notification considering notification settings
-		if job.IsNotificationOn {
-			con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
-		}
+		con.notifyJobStatus(job, enum.JobStateFailed)
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 			return nil
@@ -317,10 +310,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 
 	if state == enum.JobStateFailed && (stage_id != 2 || (stage_id == 2 && job.LabResult.Total != 0)) {
 		logger.Infof("Conductor: updateJobData: Error: Invalid stage")
-		// Send email notification considering notification settings
-		if job.IsNotificationOn {
-			con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
-		}
+		con.notifyJobStatus(job, enum.JobStateFailed)
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 			return nil
@@ -341,10 +331,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 		return nil
 	}
 
-	// Send email notification considering notification settings
-	if job.IsNotificationOn && (job.RunType != "auto" || job.State == enum.JobStateFailed) {
-		con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, job.State, job.StageId, job.Meta[job.StageId])
-	}
+	con.notifyJobStatus(job, job.State)
 
 	return job
 }
@@ -436,16 +423,16 @@ func (con *conductor) updateQueryResultData(data Data) {
 	}
 }
 
-func (con *conductor) updateMutationData(data Data) {
+func (con *conductor) updateMutationData(data Data) enum.JobState {
 	job, err := con.jobRepository.FindById(data.JobID)
 	if err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to find job %s: %v", data.JobID, err)
-		return
+		return ""
 	}
 	mutation, err := con.mutationRepository.FindById(data.MutationID)
 	if err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to find mutation %s: %v", data.MutationID, err)
-		return
+		return ""
 	}
 
 	if data.Status == string(enum.JobStateFailed) {
@@ -453,15 +440,15 @@ func (con *conductor) updateMutationData(data Data) {
 		logger.Infof("Conductor: updateMutationData: Mutation %s failed: %v", data.JobID, data.Error)
 		if err := con.mutationRepository.Update(data.MutationID, mutation); err != nil {
 			logger.Errorf("Conductor: updateMutationData: Failed to update mutation %s: %v", data.MutationID, err)
-			return
+			return ""
 		}
 		job.State = enum.JobStateFailed
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateMutationData: Failed to update job %s: %v", data.JobID, err)
-			return
+			return ""
 		}
 		con.jobRepository.AddErrorLog(data.JobID, "Mutation error: "+data.Error)
-		return
+		return enum.JobStateFailed
 	}
 
 	mutation.State = enum.MutationStateCompleted
@@ -480,13 +467,13 @@ func (con *conductor) updateMutationData(data Data) {
 		}
 		if err := con.mutationResultRepository.Create(newMutationResult); err != nil {
 			logger.Errorf("Conductor: updateMutationData: Failed to create new mutation result for mutation %s: %v", data.MutationID, err)
-			return
+			return ""
 		}
 	}
 
 	if err := con.mutationRepository.Update(data.MutationID, mutation); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update mutation %s: %v", data.MutationID, err)
-		return
+		return ""
 	}
 
 	job.State = enum.JobStateCompleted
@@ -496,8 +483,10 @@ func (con *conductor) updateMutationData(data Data) {
 	job.RunTime["mutation"] = models.StageRunTime{StartTime: job.RunTime["mutation"].StartTime, EndTime: time.Now()}
 	if err := con.jobRepository.Update(data.JobID, job); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
-		return
+		return ""
 	}
+
+	return enum.JobStateCompleted
 }
 
 func (con *conductor) sendJobToPipelineComponent(stageId int, tool string, request PipelineRequest) error {
@@ -559,6 +548,23 @@ func getNextStage(job models.Job, data Data) (state enum.JobState, stage_id int)
 	default:
 		return enum.JobStateFailed, data.StageID
 	}
+}
+
+func shouldNotify(job *models.Job, state enum.JobState) bool {
+	if !job.IsNotificationOn {
+		return false
+	}
+	if job.RunType != "auto" {
+		return true
+	}
+	return state == enum.JobStateCompleted || state == enum.JobStateFailed
+}
+
+func (con *conductor) notifyJobStatus(job *models.Job, state enum.JobState) {
+	if !shouldNotify(job, state) {
+		return
+	}
+	con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, state, job.StageId, job.Meta[job.StageId])
 }
 
 func (con *conductor) sendJobStatusNotificationEmail(userID string, jobID string, jobName string, jobState enum.JobState, stageID int, stageName string) {

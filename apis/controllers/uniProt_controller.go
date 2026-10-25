@@ -73,6 +73,11 @@ func (up *UniProtController) GetProteinSequenceFromId(c *gin.Context) {
 	rawString := string(bodyBytes)
 	result := formatSequence(rawString)
 
+	if err := validateProteinSequence("sequence from UniProt", result); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, err.Error())
+		return
+	}
+
 	sequence := models.UniProtSequence{
 		Sequence: result,
 	}

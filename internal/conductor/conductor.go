@@ -287,8 +287,9 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	}
 
 	if data.StageID == 3 {
-		con.updateMutationData(data)
-		con.notifyJobStatus(job, enum.JobStateCompleted)
+		if state := con.updateMutationData(data); state != "" {
+			con.notifyJobStatus(job, state)
+		}
 		return nil
 	}
 
@@ -422,16 +423,16 @@ func (con *conductor) updateQueryResultData(data Data) {
 	}
 }
 
-func (con *conductor) updateMutationData(data Data) {
+func (con *conductor) updateMutationData(data Data) enum.JobState {
 	job, err := con.jobRepository.FindById(data.JobID)
 	if err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to find job %s: %v", data.JobID, err)
-		return
+		return ""
 	}
 	mutation, err := con.mutationRepository.FindById(data.MutationID)
 	if err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to find mutation %s: %v", data.MutationID, err)
-		return
+		return ""
 	}
 
 	if data.Status == string(enum.JobStateFailed) {
@@ -439,15 +440,15 @@ func (con *conductor) updateMutationData(data Data) {
 		logger.Infof("Conductor: updateMutationData: Mutation %s failed: %v", data.JobID, data.Error)
 		if err := con.mutationRepository.Update(data.MutationID, mutation); err != nil {
 			logger.Errorf("Conductor: updateMutationData: Failed to update mutation %s: %v", data.MutationID, err)
-			return
+			return ""
 		}
 		job.State = enum.JobStateFailed
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateMutationData: Failed to update job %s: %v", data.JobID, err)
-			return
+			return ""
 		}
 		con.jobRepository.AddErrorLog(data.JobID, "Mutation error: "+data.Error)
-		return
+		return enum.JobStateFailed
 	}
 
 	mutation.State = enum.MutationStateCompleted
@@ -466,13 +467,13 @@ func (con *conductor) updateMutationData(data Data) {
 		}
 		if err := con.mutationResultRepository.Create(newMutationResult); err != nil {
 			logger.Errorf("Conductor: updateMutationData: Failed to create new mutation result for mutation %s: %v", data.MutationID, err)
-			return
+			return ""
 		}
 	}
 
 	if err := con.mutationRepository.Update(data.MutationID, mutation); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update mutation %s: %v", data.MutationID, err)
-		return
+		return ""
 	}
 
 	job.State = enum.JobStateCompleted
@@ -482,8 +483,10 @@ func (con *conductor) updateMutationData(data Data) {
 	job.RunTime["mutation"] = models.StageRunTime{StartTime: job.RunTime["mutation"].StartTime, EndTime: time.Now()}
 	if err := con.jobRepository.Update(data.JobID, job); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
-		return
+		return ""
 	}
+
+	return enum.JobStateCompleted
 }
 
 func (con *conductor) sendJobToPipelineComponent(stageId int, tool string, request PipelineRequest) error {

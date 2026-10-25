@@ -3,6 +3,7 @@ package conductor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"testing"
 
@@ -188,6 +189,17 @@ func newTestConductor(t *testing.T) (*conductor, *conductorDependencies, func())
 	return NewConductor(deps.jobRepository, deps.mutationRepository, deps.queryResultRepository, deps.mutationResultRepository, deps.publisher), deps, finish
 }
 
+func expectStatusEmail(t *testing.T, deps *conductorDependencies, want enum.JobState) {
+	deps.publisher.EXPECT().
+		PublishDefaultExchange(gomock.Any(), "job_status_email_notification", gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ string, body []byte) error {
+			var msg map[string]string
+			assert.NoError(t, json.Unmarshal(body, &msg))
+			assert.Equal(t, string(want), msg["job_state"])
+			return nil
+		})
+}
+
 func TestConductor_updateJobData_notification(t *testing.T) {
 	t.Parallel()
 
@@ -206,17 +218,6 @@ func TestConductor_updateJobData_notification(t *testing.T) {
 		}
 	}
 
-	expectEmail := func(tt *testing.T, deps *conductorDependencies, want enum.JobState) {
-		deps.publisher.EXPECT().
-			PublishDefaultExchange(gomock.Any(), "job_status_email_notification", gomock.Any()).
-			DoAndReturn(func(_ context.Context, _ string, body []byte) error {
-				var msg map[string]string
-				assert.NoError(tt, json.Unmarshal(body, &msg))
-				assert.Equal(tt, string(want), msg["job_state"])
-				return nil
-			})
-	}
-
 	t.Run("one-step job emails when a stage finishes", func(tt *testing.T) {
 		conductor, deps, finish := newTestConductor(tt)
 		defer finish()
@@ -224,7 +225,7 @@ func TestConductor_updateJobData_notification(t *testing.T) {
 		job := newJob("one-step")
 		deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil)
 		deps.jobRepository.EXPECT().Update(job.Id.Hex(), gomock.Any()).Return(nil)
-		expectEmail(tt, deps, enum.JobStatePending)
+		expectStatusEmail(tt, deps, enum.JobStatePending)
 
 		got := conductor.updateJobData(Data{JobID: job.Id.Hex(), StageID: 1, Status: "COMPLETED"})
 
@@ -253,7 +254,7 @@ func TestConductor_updateJobData_notification(t *testing.T) {
 		deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil)
 		deps.jobRepository.EXPECT().Update(job.Id.Hex(), gomock.Any()).Return(nil)
 		deps.jobRepository.EXPECT().AddErrorLog(job.Id.Hex(), gomock.Any()).Return(nil)
-		expectEmail(tt, deps, enum.JobStateFailed)
+		expectStatusEmail(tt, deps, enum.JobStateFailed)
 
 		conductor.updateJobData(Data{JobID: job.Id.Hex(), StageID: 1, Status: "FAILED", Error: "boom"})
 
@@ -270,6 +271,65 @@ func TestConductor_updateJobData_notification(t *testing.T) {
 		deps.jobRepository.EXPECT().Update(job.Id.Hex(), gomock.Any()).Return(nil)
 
 		conductor.updateJobData(Data{JobID: job.Id.Hex(), StageID: 1, Status: "COMPLETED"})
+	})
+}
+
+func TestConductor_updateJobData_mutationNotification(t *testing.T) {
+	t.Parallel()
+
+	newJob := func() *models.Job {
+		return &models.Job{
+			Id:               primitive.NewObjectID(),
+			Name:             "test job",
+			UserId:           "user-1",
+			State:            enum.JobStateOnGoing,
+			StageId:          3,
+			Meta:             []string{"blast", "unirep", "ridgecv", "mutation"},
+			RunType:          "auto",
+			RunTime:          map[string]models.StageRunTime{},
+			IsNotificationOn: true,
+		}
+	}
+	mutationID := primitive.NewObjectID()
+
+	t.Run("completed mutation run emails completed", func(tt *testing.T) {
+		conductor, deps, finish := newTestConductor(tt)
+		defer finish()
+
+		job := newJob()
+		deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil).Times(2)
+		deps.mutationRepository.EXPECT().FindById(mutationID.Hex()).Return(&models.Mutation{Id: mutationID}, nil)
+		deps.mutationRepository.EXPECT().Update(mutationID.Hex(), gomock.Any()).Return(nil)
+		deps.jobRepository.EXPECT().Update(job.Id.Hex(), gomock.Any()).Return(nil)
+		expectStatusEmail(tt, deps, enum.JobStateCompleted)
+
+		conductor.updateJobData(Data{JobID: job.Id.Hex(), MutationID: mutationID.Hex(), StageID: 3, Status: "COMPLETED"})
+	})
+
+	t.Run("failed mutation run emails failed", func(tt *testing.T) {
+		conductor, deps, finish := newTestConductor(tt)
+		defer finish()
+
+		job := newJob()
+		deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil).Times(2)
+		deps.mutationRepository.EXPECT().FindById(mutationID.Hex()).Return(&models.Mutation{Id: mutationID}, nil)
+		deps.mutationRepository.EXPECT().Update(mutationID.Hex(), gomock.Any()).Return(nil)
+		deps.jobRepository.EXPECT().Update(job.Id.Hex(), gomock.Any()).Return(nil)
+		deps.jobRepository.EXPECT().AddErrorLog(job.Id.Hex(), gomock.Any()).Return(nil)
+		expectStatusEmail(tt, deps, enum.JobStateFailed)
+
+		conductor.updateJobData(Data{JobID: job.Id.Hex(), MutationID: mutationID.Hex(), StageID: 3, Status: "FAILED", Error: "boom"})
+	})
+
+	t.Run("no email when the mutation result could not be saved", func(tt *testing.T) {
+		conductor, deps, finish := newTestConductor(tt)
+		defer finish()
+
+		job := newJob()
+		deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil).Times(2)
+		deps.mutationRepository.EXPECT().FindById(mutationID.Hex()).Return(nil, errors.New("mongo down"))
+
+		conductor.updateJobData(Data{JobID: job.Id.Hex(), MutationID: mutationID.Hex(), StageID: 3, Status: "COMPLETED"})
 	})
 }
 

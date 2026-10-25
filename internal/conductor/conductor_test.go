@@ -1,6 +1,8 @@
 package conductor
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"testing"
 
@@ -184,4 +186,89 @@ func newTestConductor(t *testing.T) (*conductor, *conductorDependencies, func())
 	}
 
 	return NewConductor(deps.jobRepository, deps.mutationRepository, deps.queryResultRepository, deps.mutationResultRepository, deps.publisher), deps, finish
+}
+
+func TestConductor_updateJobData_notification(t *testing.T) {
+	t.Parallel()
+
+	newJob := func(runType string) *models.Job {
+		return &models.Job{
+			Id:               primitive.NewObjectID(),
+			Name:             "test job",
+			UserId:           "user-1",
+			State:            enum.JobStateOnGoing,
+			StageId:          1,
+			Meta:             []string{"blast", "unirep", "ridgecv", "mutation"},
+			RunType:          runType,
+			RunTime:          map[string]models.StageRunTime{},
+			LabResult:        models.LabResult{Total: 1},
+			IsNotificationOn: true,
+		}
+	}
+
+	expectEmail := func(tt *testing.T, deps *conductorDependencies, want enum.JobState) {
+		deps.publisher.EXPECT().
+			PublishDefaultExchange(gomock.Any(), "job_status_email_notification", gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ string, body []byte) error {
+				var msg map[string]string
+				assert.NoError(tt, json.Unmarshal(body, &msg))
+				assert.Equal(tt, string(want), msg["job_state"])
+				return nil
+			})
+	}
+
+	t.Run("one-step job emails when a stage finishes", func(tt *testing.T) {
+		conductor, deps, finish := newTestConductor(tt)
+		defer finish()
+
+		job := newJob("one-step")
+		deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil)
+		deps.jobRepository.EXPECT().Update(job.Id.Hex(), gomock.Any()).Return(nil)
+		expectEmail(tt, deps, enum.JobStatePending)
+
+		got := conductor.updateJobData(Data{JobID: job.Id.Hex(), StageID: 1, Status: "COMPLETED"})
+
+		assert.Equal(tt, enum.JobStatePending, got.State)
+	})
+
+	t.Run("auto job does not email when a stage finishes", func(tt *testing.T) {
+		conductor, deps, finish := newTestConductor(tt)
+		defer finish()
+
+		job := newJob("auto")
+		deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil)
+		deps.jobRepository.EXPECT().Update(job.Id.Hex(), gomock.Any()).Return(nil)
+		// no publish expected: gomock fails the test on an unexpected email
+
+		got := conductor.updateJobData(Data{JobID: job.Id.Hex(), StageID: 1, Status: "COMPLETED"})
+
+		assert.Equal(tt, enum.JobStateOnGoing, got.State)
+	})
+
+	t.Run("auto job emails when a stage fails", func(tt *testing.T) {
+		conductor, deps, finish := newTestConductor(tt)
+		defer finish()
+
+		job := newJob("auto")
+		deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil)
+		deps.jobRepository.EXPECT().Update(job.Id.Hex(), gomock.Any()).Return(nil)
+		deps.jobRepository.EXPECT().AddErrorLog(job.Id.Hex(), gomock.Any()).Return(nil)
+		expectEmail(tt, deps, enum.JobStateFailed)
+
+		conductor.updateJobData(Data{JobID: job.Id.Hex(), StageID: 1, Status: "FAILED", Error: "boom"})
+
+		assert.Equal(tt, enum.JobStateFailed, job.State)
+	})
+
+	t.Run("no email when notification is off", func(tt *testing.T) {
+		conductor, deps, finish := newTestConductor(tt)
+		defer finish()
+
+		job := newJob("one-step")
+		job.IsNotificationOn = false
+		deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil)
+		deps.jobRepository.EXPECT().Update(job.Id.Hex(), gomock.Any()).Return(nil)
+
+		conductor.updateJobData(Data{JobID: job.Id.Hex(), StageID: 1, Status: "COMPLETED"})
+	})
 }

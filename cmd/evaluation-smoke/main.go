@@ -2,6 +2,7 @@
 //
 //	-flow evaluation  a registered run is dispatched by the smoke itself
 //	-flow mutation    mutation result -> evaluation -> job completed
+//	-flow api         rerun, results and job deletion over the HTTP API
 package main
 
 import (
@@ -35,7 +36,7 @@ const smokeDB = "blx01_smoke"
 func main() {
 	mongoURI := flag.String("mongo-uri", "mongodb://127.0.0.1:27018", "local smoke MongoDB")
 	amqpURL := flag.String("rabbitmq-url", "amqp://guest:guest@127.0.0.1:5674/", "local smoke RabbitMQ")
-	flow := flag.String("flow", "evaluation", "evaluation or mutation")
+	flow := flag.String("flow", "evaluation", "evaluation, mutation or api")
 	flag.Parse()
 	logger.InitZap()
 	run := runSmoke
@@ -43,8 +44,10 @@ func main() {
 	case "evaluation":
 	case "mutation":
 		run = runMutationFlowSmoke
+	case "api":
+		run = runAPIFlowSmoke
 	default:
-		fmt.Fprintln(os.Stderr, "unknown -flow, use evaluation or mutation")
+		fmt.Fprintln(os.Stderr, "unknown -flow, use evaluation, mutation or api")
 		os.Exit(2)
 	}
 	if err := run(*mongoURI, *amqpURL); err != nil {

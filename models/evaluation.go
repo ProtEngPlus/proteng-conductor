@@ -33,6 +33,7 @@ type EvaluationRun struct {
 	Error        string          `bson:"error" json:"error"`
 	CreatedAt    time.Time       `bson:"created_at" json:"created_at"`
 	CompleteAt   time.Time       `bson:"complete_at" json:"complete_at"`
+	Rerun        bool            `bson:"rerun" json:"rerun"`
 }
 
 type EvaluationResult struct {

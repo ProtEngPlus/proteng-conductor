@@ -273,3 +273,45 @@ func TestEvaluationCompletesWaitingJob(t *testing.T) {
 		require.Equal(tt, 1, f.results.writes)
 	})
 }
+
+func TestRerunEvaluation(t *testing.T) {
+	results := func(f *dispatchFixture) []*models.MutationResult {
+		return []*models.MutationResult{
+			{Id: primitive.NewObjectID(), JobId: f.job.Id, MutationId: f.mutation.Id, ProteinSequence: "AAAC"},
+		}
+	}
+
+	t.Run("starts a rerun with the requested plugins and leaves the job alone", func(tt *testing.T) {
+		f := newDispatchFixture(tt, "auto", 1)
+		f.job.State = enum.JobStateCompleted
+		f.deps.mutationResultRepository.EXPECT().GetAll(gomock.Any()).Return(results(f), nil)
+		f.expectDispatch(nil)
+
+		run, err := f.con.RerunEvaluation(f.job, f.mutation, []string{"mock"})
+
+		require.NoError(tt, err)
+		require.True(tt, run.Rerun)
+		require.Equal(tt, []string{"mock"}, run.Plugins)
+		require.Equal(tt, []string{"publish"}, f.events)
+		require.Equal(tt, enum.JobStateCompleted, f.job.State)
+	})
+
+	t.Run("rejects a rerun while another run of the job is ongoing", func(tt *testing.T) {
+		f := newDispatchFixture(tt, "auto", 1)
+		f.runs.run = &models.EvaluationRun{Id: primitive.NewObjectID(), JobId: f.job.Id, State: models.EvaluationOngoing}
+
+		_, err := f.con.RerunEvaluation(f.job, f.mutation, []string{"mock"})
+
+		require.ErrorIs(tt, err, ErrEvaluationRunning)
+		require.Empty(tt, f.events)
+	})
+
+	t.Run("rejects a mutation run without results", func(tt *testing.T) {
+		f := newDispatchFixture(tt, "auto", 1)
+		f.deps.mutationResultRepository.EXPECT().GetAll(gomock.Any()).Return([]*models.MutationResult{}, nil)
+
+		_, err := f.con.RerunEvaluation(f.job, f.mutation, []string{"mock"})
+
+		require.ErrorIs(tt, err, ErrNoEvaluationCandidates)
+	})
+}

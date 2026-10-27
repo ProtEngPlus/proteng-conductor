@@ -97,7 +97,7 @@ func main() {
 	routes.JobRoute(router, jobRepository, mutationRepository, mutationResultRepository, configurationRepository, queryResultRepository, experimentalResultRepository, conductor)
 	routes.MutationRoute(router, jobRepository, mutationRepository, mutationResultRepository, experimentalResultRepository, conductor)
 	routes.ExperimentalResultRoute(router, mutationResultRepository, experimentalResultRepository)
-	routes.EvaluationRoute(router, jobRepository, mutationResultRepository, evaluationRunRepository, evaluationResultRepository)
+	routes.EvaluationRoute(router, jobRepository, mutationRepository, mutationResultRepository, evaluationRunRepository, evaluationResultRepository, conductor)
 	routes.ArtifactRoute(router, storageService)
 	routes.UniProtRoute(router, storageService)
 	routes.QueryResultRoute(router, jobRepository, queryResultRepository, conductor)

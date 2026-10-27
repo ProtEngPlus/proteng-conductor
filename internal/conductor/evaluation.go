@@ -200,6 +200,9 @@ func (con *conductor) finishRun(run *models.EvaluationRun, pluginError string) e
 // Jobs in any other state are left alone, so a repeated call changes nothing.
 // A failed update returns an error so the message is retried.
 func (con *conductor) completeEvaluatedJob(run *models.EvaluationRun) error {
+	if run.Rerun {
+		return nil
+	}
 	job, err := con.jobRepository.FindById(run.JobId.Hex())
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil // the job was deleted; nothing is waiting for this run

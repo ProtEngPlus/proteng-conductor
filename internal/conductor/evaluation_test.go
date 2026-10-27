@@ -307,3 +307,14 @@ func TestEvaluationMockWorkerCallbacks(t *testing.T) {
 		})
 	}
 }
+
+func TestEvaluationRerunLeavesTheJobAlone(t *testing.T) {
+	f := newEvaluationFixture(t)
+	f.job.State = enum.JobStateOnGoing
+	f.runs.run.Rerun = true
+
+	require.NoError(t, f.con.OrchestrateWithError(f.message(t)))
+
+	require.Equal(t, models.EvaluationCompleted, f.runs.run.State)
+	require.Equal(t, enum.JobStateOnGoing, f.job.State)
+}

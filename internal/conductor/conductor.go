@@ -30,6 +30,7 @@ type Conductor interface {
 	OrchestrateJob(job *models.Job) error
 	RunJob(job *models.Job) error
 	RunMutation(mutation *models.Mutation) error
+	RerunEvaluation(job *models.Job, mutation *models.Mutation, plugins []string) (*models.EvaluationRun, error)
 	sendJobStatusNotificationEmail(userID string, jobID string, jobName string, jobState enum.JobState, stageID int, stageName string)
 }
 

@@ -69,7 +69,7 @@ func (con *conductor) resumeEvaluation(job *models.Job, mutation *models.Mutatio
 }
 
 func (con *conductor) beginEvaluation(job *models.Job, mutation *models.Mutation, results []*models.MutationResult) error {
-	err := con.startEvaluation(job, mutation, results)
+	_, err := con.startEvaluation(job, mutation, results, job.EvaluationPlugins, false)
 	if err == nil {
 		return nil
 	}
@@ -85,9 +85,9 @@ func (con *conductor) beginEvaluation(job *models.Job, mutation *models.Mutation
 // startEvaluation registers an evaluation run for the selected mutants and sends
 // it to the run's first plugin. It returns an error when no plugin could be
 // dispatched; the run is then finished as failed, so it never stays ongoing.
-func (con *conductor) startEvaluation(job *models.Job, mutation *models.Mutation, results []*models.MutationResult) error {
+func (con *conductor) startEvaluation(job *models.Job, mutation *models.Mutation, results []*models.MutationResult, plugins []string, rerun bool) (*models.EvaluationRun, error) {
 	if con.evaluationRunRepository == nil {
-		return fmt.Errorf("evaluation persistence is not configured")
+		return nil, fmt.Errorf("evaluation persistence is not configured")
 	}
 	candidates := evaluationCandidates(results)
 	ids := make([]primitive.ObjectID, 0, len(candidates))
@@ -99,19 +99,20 @@ func (con *conductor) startEvaluation(job *models.Job, mutation *models.Mutation
 		JobId:             job.Id,
 		MutationId:        mutation.Id,
 		MutationResultIds: ids,
-		Plugins:           job.EvaluationPlugins,
+		Plugins:           plugins,
+		Rerun:             rerun,
 	}
 	if err := con.evaluationRunRepository.Create(run); err != nil {
-		return fmt.Errorf("create evaluation run: %w", err)
+		return nil, fmt.Errorf("create evaluation run: %w", err)
 	}
 	dispatched, err := con.dispatchCurrentPlugin(job, run, candidates)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !dispatched {
-		return fmt.Errorf("no plugin of evaluation run %s could be dispatched", run.Id.Hex())
+		return nil, fmt.Errorf("no plugin of evaluation run %s could be dispatched", run.Id.Hex())
 	}
-	return nil
+	return run, nil
 }
 
 // dispatchCurrentPlugin sends the run to its current plugin. A plugin that cannot
@@ -142,4 +143,32 @@ func (con *conductor) dispatchCurrentPlugin(job *models.Job, run *models.Evaluat
 			return false, fmt.Errorf("advance evaluation run: %w", err)
 		}
 	}
+}
+
+var (
+	ErrEvaluationRunning      = errors.New("an evaluation of this job is still running")
+	ErrNoEvaluationCandidates = errors.New("the mutation run has no results to evaluate")
+)
+
+func (con *conductor) RerunEvaluation(job *models.Job, mutation *models.Mutation, plugins []string) (*models.EvaluationRun, error) {
+	if con.evaluationRunRepository == nil {
+		return nil, fmt.Errorf("evaluation persistence is not configured")
+	}
+	runs, err := con.evaluationRunRepository.FindByJob(job.Id.Hex())
+	if err != nil {
+		return nil, err
+	}
+	for _, run := range runs {
+		if run.State == models.EvaluationOngoing {
+			return nil, ErrEvaluationRunning
+		}
+	}
+	results, err := con.mutationResultRepository.GetAll(map[string]interface{}{"mutation_id": mutation.Id.Hex()})
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, ErrNoEvaluationCandidates
+	}
+	return con.startEvaluation(job, mutation, results, plugins, true)
 }

@@ -12,12 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
+	"github.com/protengplus/proteng-conductor/internal/validator"
 	"github.com/protengplus/proteng-conductor/models"
 	"github.com/protengplus/proteng-conductor/repositories/mock_repository"
 )
 
 func TestJobControllerAssay(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	validator.Init()
 
 	assayType := &models.AssayType{Id: primitive.NewObjectID(), UserId: "owner", Name: "Yield"}
 	typeId := assayType.Id.Hex()
@@ -39,6 +41,7 @@ func TestJobControllerAssay(t *testing.T) {
 		}
 		jc := NewJobController(m.jr, nil, m.mrr, nil, nil, m.exr, m.atr, nil)
 		router := gin.New()
+		router.POST("/jobs", jc.CreateJob)
 		router.PUT("/jobs/:id", jc.UpdateJob)
 		return jc, router, m
 	}
@@ -143,5 +146,74 @@ func TestJobControllerAssay(t *testing.T) {
 		router.ServeHTTP(w, httptest.NewRequest(http.MethodPut, "/jobs/"+jobId, strings.NewReader(`{"assay_type_id":"`+typeId+`"}`)))
 		assert.Equal(tt, http.StatusOK, w.Code)
 		assert.Contains(tt, w.Body.String(), `"assay_type_name":"Yield"`)
+	})
+
+	libraryId := libraryResult.Id.Hex()
+	post := func(router *gin.Engine, rows string) *httptest.ResponseRecorder {
+		body := `{"job":{"name":"J","user_id":"owner","stage_id":0,"input_protein":"MKV","run_type":"auto","options":{},"assay_type_id":"` + typeId + `","library_result_ids":["` + libraryId + `"],"lab_result":` + rows + `}}`
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(body)))
+		return w
+	}
+	put := func(router *gin.Engine, jobId string, rows string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodPut, "/jobs/"+jobId, strings.NewReader(`{"lab_result":`+rows+`}`)))
+		return w
+	}
+	mixedRows := `{"total":2,"sequences":["mkv","AAA"],"scores":[2,1],"sources":["library","upload"]}`
+	duplicateRows := `{"total":2,"sequences":["mkv","MKV"],"scores":[2,2],"sources":["library","upload"]}`
+
+	t.Run("create saves the assay type, library ids and row sources", func(tt *testing.T) {
+		_, router, m := setup(tt)
+		m.atr.EXPECT().FindById(typeId).Return(assayType, nil)
+		m.exr.EXPECT().GetByIds([]string{libraryId}).Return([]*models.ExperimentalResult{libraryResult}, nil)
+		m.jr.EXPECT().Create(gomock.Any()).DoAndReturn(func(job *models.Job) error {
+			assert.Equal(tt, assayType.Id, job.AssayTypeId)
+			assert.Equal(tt, []primitive.ObjectID{libraryResult.Id}, job.LibraryResultIds)
+			assert.Equal(tt, []string{models.SourceLibrary, models.SourceUpload}, job.LabResult.Sources)
+			return nil
+		})
+
+		assert.Equal(tt, http.StatusOK, post(router, mixedRows).Code)
+	})
+
+	t.Run("create rejects duplicate sequences before saving", func(tt *testing.T) {
+		_, router, m := setup(tt)
+		m.atr.EXPECT().FindById(typeId).Return(assayType, nil)
+
+		assert.Equal(tt, http.StatusBadRequest, post(router, duplicateRows).Code)
+	})
+
+	t.Run("update keeps the library ids and stacked row sources", func(tt *testing.T) {
+		_, router, m := setup(tt)
+		oldJob := &models.Job{
+			Id:               primitive.NewObjectID(),
+			UserId:           "owner",
+			AssayTypeId:      assayType.Id,
+			LibraryResultIds: []primitive.ObjectID{libraryResult.Id},
+			LabResult:        models.LabResult{Total: 1, Sequences: []string{"mkv"}, Scores: []float32{2}, Sources: []string{models.SourceLibrary}},
+		}
+		jobId := oldJob.Id.Hex()
+		m.jr.EXPECT().FindById(jobId).Return(oldJob, nil)
+		m.atr.EXPECT().FindById(typeId).Return(assayType, nil).Times(2)
+		m.exr.EXPECT().GetByIds([]string{libraryId}).Return([]*models.ExperimentalResult{libraryResult}, nil)
+		m.jr.EXPECT().Update(jobId, gomock.Any()).DoAndReturn(func(_ string, job *models.Job) error {
+			assert.Equal(tt, []primitive.ObjectID{libraryResult.Id}, job.LibraryResultIds)
+			assert.Equal(tt, assayType.Id, job.AssayTypeId)
+			assert.Equal(tt, []string{models.SourceLibrary, models.SourceUpload}, job.LabResult.Sources)
+			return nil
+		})
+
+		assert.Equal(tt, http.StatusOK, put(router, jobId, mixedRows).Code)
+	})
+
+	t.Run("update rejects duplicate sequences before saving", func(tt *testing.T) {
+		_, router, m := setup(tt)
+		oldJob := &models.Job{Id: primitive.NewObjectID(), UserId: "owner", AssayTypeId: assayType.Id, LibraryResultIds: []primitive.ObjectID{libraryResult.Id}}
+		m.jr.EXPECT().FindById(oldJob.Id.Hex()).Return(oldJob, nil)
+		m.atr.EXPECT().FindById(typeId).Return(assayType, nil)
+		m.exr.EXPECT().GetByIds([]string{libraryId}).Return([]*models.ExperimentalResult{libraryResult}, nil).AnyTimes()
+
+		assert.Equal(tt, http.StatusBadRequest, put(router, oldJob.Id.Hex(), duplicateRows).Code)
 	})
 }

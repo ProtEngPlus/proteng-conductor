@@ -193,4 +193,36 @@ func TestAssayTypeController(t *testing.T) {
 		w := send(router, http.MethodGet, "/assay-types/"+id+"/library/export?user_id=owner&ids="+primitive.NewObjectID().Hex(), "")
 		assert.Equal(tt, http.StatusNotFound, w.Code)
 	})
+
+	t.Run("update by another user gets 403", func(tt *testing.T) {
+		router, m := setup(tt)
+		m.atr.EXPECT().FindById(id).Return(owned, nil)
+
+		w := send(router, http.MethodPut, "/assay-types/"+id, `{"user_id":"other","name":"Zed","description":""}`)
+		assert.Equal(tt, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("update to a name another type has gets 409", func(tt *testing.T) {
+		router, m := setup(tt)
+		current := *owned
+		taken := &models.AssayType{Id: primitive.NewObjectID(), UserId: "owner", Name: "Thermostability"}
+		m.atr.EXPECT().FindById(id).Return(&current, nil)
+		m.atr.EXPECT().GetAllByUser("owner").Return([]*models.AssayType{owned, taken}, nil)
+
+		w := send(router, http.MethodPut, "/assay-types/"+id, `{"user_id":"owner","name":"thermostability","description":""}`)
+		assert.Equal(tt, http.StatusConflict, w.Code)
+	})
+
+	t.Run("library jobs search by job name", func(tt *testing.T) {
+		router, m := setup(tt)
+		m.atr.EXPECT().FindById(id).Return(owned, nil)
+		m.exr.EXPECT().GetAll(typeQuery).Return(results, nil)
+		m.jr.EXPECT().FindById(jobOne.Hex()).Return(&models.Job{Name: "Job one", CompleteAt: now.Add(-time.Hour)}, nil)
+		m.jr.EXPECT().FindById(jobTwo.Hex()).Return(&models.Job{Name: "Job two", CompleteAt: now}, nil)
+
+		w := send(router, http.MethodGet, "/assay-types/"+id+"/library/jobs?user_id=owner&q=TWO", "")
+		assert.Equal(tt, http.StatusOK, w.Code)
+		assert.Contains(tt, w.Body.String(), "Job two")
+		assert.NotContains(tt, w.Body.String(), "Job one")
+	})
 }

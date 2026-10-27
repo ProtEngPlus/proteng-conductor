@@ -21,6 +21,7 @@ type dispatchFixture struct {
 	mutation *models.Mutation
 	data     Data
 	sent     []byte
+	events   []string // job saves and plugin dispatches, in call order
 }
 
 func newDispatchFixture(t *testing.T, runType string, runID int) *dispatchFixture {
@@ -65,13 +66,31 @@ func (f *dispatchFixture) expectMutationStored(jobFinds int) {
 		DoAndReturn(func(r *models.MutationResult) error { r.Id = primitive.NewObjectID(); return nil }).
 		Times(len(f.data.MutationResult))
 	f.deps.mutationRepository.EXPECT().Update(f.mutation.Id.Hex(), gomock.Any()).Return(nil)
-	f.deps.jobRepository.EXPECT().Update(f.job.Id.Hex(), gomock.Any()).Return(nil)
+	f.expectJobSaved()
+}
+
+// expectJobSaved expects one more job update and records the saved state.
+func (f *dispatchFixture) expectJobSaved() {
+	f.deps.jobRepository.EXPECT().Update(f.job.Id.Hex(), gomock.Any()).
+		DoAndReturn(func(_ string, j *models.Job) error {
+			f.events = append(f.events, "save "+string(j.State))
+			return nil
+		})
 }
 
 func (f *dispatchFixture) expectDispatch(err error) {
 	f.deps.publisher.EXPECT().PublishWithTopic(gomock.Any(), "evaluation.mock", gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ string, body []byte) error { f.sent = body; return err })
+		DoAndReturn(func(_ context.Context, _ string, body []byte) error {
+			f.events = append(f.events, "publish")
+			f.sent = body
+			return err
+		})
 }
+
+var (
+	savedOnGoing   = "save " + string(enum.JobStateOnGoing)
+	savedCompleted = "save " + string(enum.JobStateCompleted)
+)
 
 func TestAfterMutation_autoJobStartsEvaluation(t *testing.T) {
 	f := newDispatchFixture(t, "auto", 1)
@@ -82,6 +101,9 @@ func TestAfterMutation_autoJobStartsEvaluation(t *testing.T) {
 
 	require.Equal(t, enum.JobStateOnGoing, state)
 	require.Equal(t, enum.JobStateOnGoing, f.job.State)
+	// Saved before the dispatch and never after it: a fast reply may already
+	// have completed the job, and a later save would set it back to ongoing.
+	require.Equal(t, []string{savedOnGoing, "publish"}, f.events)
 	require.Equal(t, 3, f.job.StageId)
 	require.True(t, f.job.CompleteAt.IsZero())
 	require.NotNil(t, f.runs.run)
@@ -126,10 +148,12 @@ func TestAfterMutation_dispatchFailureCompletesJob(t *testing.T) {
 	f.expectMutationStored(1)
 	f.expectDispatch(errors.New("broker down"))
 	f.deps.jobRepository.EXPECT().AddErrorLog(f.job.Id.Hex(), gomock.Any()).Return(nil)
+	f.expectJobSaved()
 
 	state := f.con.updateMutationData(f.data)
 
 	require.Equal(t, enum.JobStateCompleted, state)
+	require.Equal(t, []string{savedOnGoing, "publish", savedCompleted}, f.events)
 	require.False(t, f.job.CompleteAt.IsZero())
 	require.Equal(t, models.EvaluationFailed, f.runs.run.State)
 }
@@ -143,16 +167,36 @@ func TestOrchestrateJob_resumesWaitingEvaluation(t *testing.T) {
 	}
 	f.deps.mutationRepository.EXPECT().GetAll(gomock.Any()).Return([]*models.Mutation{f.mutation}, nil)
 	f.deps.mutationResultRepository.EXPECT().GetAll(gomock.Any()).Return(results, nil)
+	f.expectJobSaved()
 	f.expectDispatch(nil)
-	f.deps.jobRepository.EXPECT().Update(f.job.Id.Hex(), gomock.Any()).
-		DoAndReturn(func(_ string, j *models.Job) error {
-			require.Equal(t, enum.JobStateOnGoing, j.State)
-			return nil
-		})
+	// no second Update expected: gomock fails the test if the job is saved
+	// after the dispatch, which is the write that could undo a fast reply
 
 	require.NoError(t, f.con.OrchestrateJob(f.job))
+	require.Equal(t, []string{savedOnGoing, "publish"}, f.events)
 	require.NotNil(t, f.runs.run)
 	require.Equal(t, []primitive.ObjectID{results[0].Id, results[1].Id}, f.runs.run.MutationResultIds)
+}
+
+func TestOrchestrateJob_resumeDispatchFailureCompletesJob(t *testing.T) {
+	f := newDispatchFixture(t, "manual", 1)
+	f.mutation.State = enum.MutationStateCompleted
+	results := []*models.MutationResult{
+		{Id: primitive.NewObjectID(), JobId: f.job.Id, MutationId: f.mutation.Id, ProteinSequence: "AAAC"},
+	}
+	f.deps.mutationRepository.EXPECT().GetAll(gomock.Any()).Return([]*models.Mutation{f.mutation}, nil)
+	f.deps.mutationResultRepository.EXPECT().GetAll(gomock.Any()).Return(results, nil)
+	f.expectJobSaved()
+	f.expectDispatch(errors.New("broker down"))
+	f.deps.jobRepository.EXPECT().AddErrorLog(f.job.Id.Hex(), gomock.Any()).Return(nil)
+	f.expectJobSaved()
+
+	require.NoError(t, f.con.OrchestrateJob(f.job))
+
+	require.Equal(t, []string{savedOnGoing, "publish", savedCompleted}, f.events)
+	require.Equal(t, enum.JobStateCompleted, f.job.State)
+	require.False(t, f.job.CompleteAt.IsZero())
+	require.Equal(t, models.EvaluationFailed, f.runs.run.State)
 }
 
 func TestUpdateJobData_mutationEmails(t *testing.T) {

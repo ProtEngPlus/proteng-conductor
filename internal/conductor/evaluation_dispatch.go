@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/protengplus/proteng-conductor/internal/logger"
 	"github.com/protengplus/proteng-conductor/models"
@@ -40,23 +41,20 @@ func evaluationRequest(job *models.Job, run *models.EvaluationRun, candidates []
 	}
 }
 
-// afterMutation decides the job state once a mutation run has stored its results.
-// The job stays at stage 3 while an evaluation runs; the EvaluationRun tracks it.
-func (con *conductor) afterMutation(job *models.Job, mutation *models.Mutation, results []*models.MutationResult) enum.JobState {
+// afterMutation decides the job state once a mutation run has stored its
+// results, and whether an evaluation should start. The job stays at stage 3
+// while an evaluation runs; the EvaluationRun tracks it. The caller saves the
+// job first and only then calls beginEvaluation.
+func afterMutation(job *models.Job, mutation *models.Mutation) (enum.JobState, bool) {
 	if len(job.EvaluationPlugins) == 0 {
-		return enum.JobStateCompleted // inherited behaviour: mutation is the last stage
+		return enum.JobStateCompleted, false // inherited behaviour: mutation is the last stage
 	}
 	// One-step jobs wait for the user like every other stage. Extra mutation
 	// runs (RunId > 1) are started by the user explicitly, so they evaluate at once.
 	if job.RunType != "auto" && mutation.RunId <= 1 {
-		return enum.JobStatePending
+		return enum.JobStatePending, false
 	}
-	if err := con.startEvaluation(job, mutation, results); err != nil {
-		logger.Errorf("Conductor: afterMutation: JobID %s: %v", job.Id.Hex(), err)
-		con.jobRepository.AddErrorLog(job.Id.Hex(), "Evaluation could not start: "+err.Error())
-		return enum.JobStateCompleted // mutation results stay usable; a plugin never fails the job
-	}
-	return enum.JobStateOnGoing
+	return enum.JobStateOnGoing, true
 }
 
 // resumeEvaluation starts the evaluation a one-step job waits for after mutation.
@@ -66,10 +64,27 @@ func (con *conductor) resumeEvaluation(job *models.Job, mutation *models.Mutatio
 		return err
 	}
 	job.State = enum.JobStateOnGoing
-	if err := con.startEvaluation(job, mutation, results); err != nil {
-		logger.Errorf("Conductor: resumeEvaluation: JobID %s: %v", job.Id.Hex(), err)
-		con.jobRepository.AddErrorLog(job.Id.Hex(), "Evaluation could not start: "+err.Error())
-		job.State = enum.JobStateCompleted
+	if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
+		return err
+	}
+	return con.beginEvaluation(job, mutation, results)
+}
+
+// beginEvaluation starts the evaluation of a job that is already saved as
+// ongoing. The save must come first: a plugin can reply, and the consumer can
+// complete the job, before this returns, so saving the caller's copy of the
+// job afterwards would set it back to ongoing for good. The job is saved again
+// only when no plugin received the run, because then no reply can race with it.
+func (con *conductor) beginEvaluation(job *models.Job, mutation *models.Mutation, results []*models.MutationResult) error {
+	err := con.startEvaluation(job, mutation, results)
+	if err == nil {
+		return nil
+	}
+	logger.Errorf("Conductor: JobID %s: evaluation could not start: %v", job.Id.Hex(), err)
+	con.jobRepository.AddErrorLog(job.Id.Hex(), "Evaluation could not start: "+err.Error())
+	job.State = enum.JobStateCompleted // mutation results stay usable; a plugin never fails the job
+	if job.CompleteAt.IsZero() {
+		job.CompleteAt = time.Now()
 	}
 	return con.jobRepository.Update(job.Id.Hex(), job)
 }

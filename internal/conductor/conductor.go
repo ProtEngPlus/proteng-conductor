@@ -540,13 +540,21 @@ func (con *conductor) updateMutationData(data Data) enum.JobState {
 	}
 
 	job.RunTime["mutation"] = models.StageRunTime{StartTime: job.RunTime["mutation"].StartTime, EndTime: time.Now()}
-	job.State = con.afterMutation(job, mutation, stored)
+	state, evaluate := afterMutation(job, mutation)
+	job.State = state
 	if job.State == enum.JobStateCompleted && mutation.RunId == 1 {
 		job.CompleteAt = time.Now()
 	}
+	// Save the job before an evaluation starts; see beginEvaluation.
 	if err := con.jobRepository.Update(data.JobID, job); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
 		return ""
+	}
+	if evaluate {
+		if err := con.beginEvaluation(job, mutation, stored); err != nil {
+			logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
+			return ""
+		}
 	}
 	return job.State
 }

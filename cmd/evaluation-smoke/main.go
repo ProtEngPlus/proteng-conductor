@@ -1,7 +1,7 @@
 // evaluation-smoke runs BLX01 round trips on local, isolated services.
 //
-//	-flow evaluation  Phase 3.2: a registered run is dispatched by the smoke itself
-//	-flow mutation    Phase 4: mutation result -> evaluation -> job completed
+//	-flow evaluation  a registered run is dispatched by the smoke itself
+//	-flow mutation    mutation result -> evaluation -> job completed
 package main
 
 import (
@@ -35,7 +35,7 @@ const smokeDB = "blx01_smoke"
 func main() {
 	mongoURI := flag.String("mongo-uri", "mongodb://127.0.0.1:27018", "local smoke MongoDB")
 	amqpURL := flag.String("rabbitmq-url", "amqp://guest:guest@127.0.0.1:5674/", "local smoke RabbitMQ")
-	flow := flag.String("flow", "evaluation", "evaluation (Phase 3.2) or mutation (Phase 4)")
+	flow := flag.String("flow", "evaluation", "evaluation or mutation")
 	flag.Parse()
 	logger.InitZap()
 	run := runSmoke
@@ -68,7 +68,7 @@ func validateLocalURI(raw, scheme string) error {
 
 func newSmokeFixture() (*models.Job, *models.Mutation, []*models.MutationResult, *models.EvaluationRun) {
 	jobID, mutationID := primitive.NewObjectID(), primitive.NewObjectID()
-	job := &models.Job{Id: jobID, Name: "BLX01 phase 3.2 smoke", UserId: "blx01-smoke", StageId: 3,
+	job := &models.Job{Id: jobID, Name: "BLX01 evaluation smoke", UserId: "blx01-smoke", StageId: 3,
 		State: enum.JobStateCompleted, InputProtein: "ACDEFGHIK", RunType: "manual"}
 	mutation := &models.Mutation{Id: mutationID, JobId: jobID, UserId: job.UserId,
 		State: enum.MutationStateCompleted, InputProtein: job.InputProtein, Tool: "mutation"}

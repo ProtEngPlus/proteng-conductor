@@ -19,11 +19,13 @@ type JobController struct {
 	configurationRepository      repositories.ConfigurationRepository
 	queryResultRepository        repositories.QueryResultRepository
 	experimentalResultRepository repositories.ExperimentalResultRepository
+	evaluationRunRepository      repositories.EvaluationRunRepository
+	evaluationResultRepository   repositories.EvaluationResultRepository
 	conductor                    conductor.Conductor
 }
 
-func NewJobController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, mutationResultRepository repositories.MutationResultRepository, configurationRepository repositories.ConfigurationRepository, queryResultRepository repositories.QueryResultRepository, experimentalResultRepository repositories.ExperimentalResultRepository, conductor conductor.Conductor) *JobController {
-	return &JobController{jobRepository: jobRepository, mutationRepository: mutationRepository, mutationResultRepository: mutationResultRepository, configurationRepository: configurationRepository, queryResultRepository: queryResultRepository, experimentalResultRepository: experimentalResultRepository, conductor: conductor}
+func NewJobController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, mutationResultRepository repositories.MutationResultRepository, configurationRepository repositories.ConfigurationRepository, queryResultRepository repositories.QueryResultRepository, experimentalResultRepository repositories.ExperimentalResultRepository, evaluationRunRepository repositories.EvaluationRunRepository, evaluationResultRepository repositories.EvaluationResultRepository, conductor conductor.Conductor) *JobController {
+	return &JobController{jobRepository: jobRepository, mutationRepository: mutationRepository, mutationResultRepository: mutationResultRepository, configurationRepository: configurationRepository, queryResultRepository: queryResultRepository, experimentalResultRepository: experimentalResultRepository, evaluationRunRepository: evaluationRunRepository, evaluationResultRepository: evaluationResultRepository, conductor: conductor}
 }
 
 // GetAllJobs retrieves all jobs
@@ -258,6 +260,24 @@ func (jc *JobController) DeleteJob(c *gin.Context) {
 	}
 
 	if err := jc.queryResultRepository.DeleteByJobId(id); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
+	runs, err := jc.evaluationRunRepository.FindByJob(id)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+	runIds := make([]primitive.ObjectID, 0, len(runs))
+	for _, run := range runs {
+		runIds = append(runIds, run.Id)
+	}
+	if err := jc.evaluationResultRepository.DeleteByRunIds(runIds); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+	if err := jc.evaluationRunRepository.DeleteByJobId(id); err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)
 		return
 	}

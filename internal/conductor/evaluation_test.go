@@ -46,6 +46,10 @@ func (r *memoryEvaluationRuns) FindByJob(string) ([]*models.EvaluationRun, error
 	copied := *r.run
 	return []*models.EvaluationRun{&copied}, nil
 }
+func (r *memoryEvaluationRuns) DeleteByJobId(string) error {
+	r.run = nil
+	return nil
+}
 func (r *memoryEvaluationRuns) FindStale(pluginStartedBefore time.Time) ([]*models.EvaluationRun, error) {
 	if r.staleErr != nil {
 		return nil, r.staleErr
@@ -103,6 +107,11 @@ func (r *memoryEvaluationResults) FindByRun(string) ([]*models.EvaluationResult,
 		results = append(results, result)
 	}
 	return results, nil
+}
+
+func (r *memoryEvaluationResults) DeleteByRunIds([]primitive.ObjectID) error {
+	r.items = map[primitive.ObjectID]*models.EvaluationResult{}
+	return nil
 }
 
 type evaluationFixture struct {

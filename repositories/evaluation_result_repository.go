@@ -16,6 +16,7 @@ import (
 type EvaluationResultRepository interface {
 	UpsertAll(results []*models.EvaluationResult) error
 	FindByRun(runId string) ([]*models.EvaluationResult, error)
+	DeleteByRunIds(runIds []primitive.ObjectID) error
 }
 
 type evaluationResultRepository struct {
@@ -84,4 +85,14 @@ func (r *evaluationResultRepository) FindByRun(runId string) ([]*models.Evaluati
 		return nil, err
 	}
 	return results, nil
+}
+
+func (r *evaluationResultRepository) DeleteByRunIds(runIds []primitive.ObjectID) error {
+	if len(runIds) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	_, err := r.collection.DeleteMany(ctx, bson.M{"evaluation_run_id": bson.M{"$in": runIds}})
+	return err
 }

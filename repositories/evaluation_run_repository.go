@@ -18,6 +18,7 @@ type EvaluationRunRepository interface {
 	Create(run *models.EvaluationRun) error
 	FindById(id string) (*models.EvaluationRun, error)
 	FindByJob(jobId string) ([]*models.EvaluationRun, error)
+	DeleteByJobId(jobId string) error
 	Finish(id primitive.ObjectID, state models.EvaluationState, message string) error
 	FindStale(pluginStartedBefore time.Time) ([]*models.EvaluationRun, error)
 	Advance(id primitive.ObjectID, fromIndex int, pluginError string) error
@@ -84,6 +85,17 @@ func (r *evaluationRunRepository) FindByJob(jobId string) ([]*models.EvaluationR
 		return nil, err
 	}
 	return runs, nil
+}
+
+func (r *evaluationRunRepository) DeleteByJobId(jobId string) error {
+	objectID, err := primitive.ObjectIDFromHex(jobId)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	_, err = r.collection.DeleteMany(ctx, bson.M{"job_id": objectID})
+	return err
 }
 
 // Finish only transitions ongoing runs. A repeated callback cannot reopen history.

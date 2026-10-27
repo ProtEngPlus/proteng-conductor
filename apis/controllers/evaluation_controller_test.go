@@ -23,7 +23,8 @@ import (
 
 type fakeEvaluationRuns struct {
 	repositories.EvaluationRunRepository
-	runs []*models.EvaluationRun
+	runs        []*models.EvaluationRun
+	deletedJobs []string
 }
 
 func (f *fakeEvaluationRuns) FindById(id string) (*models.EvaluationRun, error) {
@@ -45,9 +46,15 @@ func (f *fakeEvaluationRuns) FindByJob(jobId string) ([]*models.EvaluationRun, e
 	return runs, nil
 }
 
+func (f *fakeEvaluationRuns) DeleteByJobId(jobId string) error {
+	f.deletedJobs = append(f.deletedJobs, jobId)
+	return nil
+}
+
 type fakeEvaluationResults struct {
 	repositories.EvaluationResultRepository
-	results []*models.EvaluationResult
+	results     []*models.EvaluationResult
+	deletedRuns []primitive.ObjectID
 }
 
 func (f *fakeEvaluationResults) FindByRun(runId string) ([]*models.EvaluationResult, error) {
@@ -58,6 +65,11 @@ func (f *fakeEvaluationResults) FindByRun(runId string) ([]*models.EvaluationRes
 		}
 	}
 	return results, nil
+}
+
+func (f *fakeEvaluationResults) DeleteByRunIds(runIds []primitive.ObjectID) error {
+	f.deletedRuns = append(f.deletedRuns, runIds...)
+	return nil
 }
 
 type rerunConductor struct {

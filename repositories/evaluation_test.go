@@ -191,4 +191,25 @@ func TestEvaluationRepositories(t *testing.T) {
 		_, err = r.FindByRun("bad")
 		require.Error(mt, err)
 	})
+	mt.Run("delete runs of a job", func(mt *mtest.T) {
+		r := &evaluationRunRepository{collection: mt.Coll}
+		jobID := primitive.NewObjectID()
+		mt.AddMockResponses(mtest.CreateSuccessResponse(bson.E{Key: "n", Value: 2}))
+		require.NoError(mt, r.DeleteByJobId(jobID.Hex()))
+		deletes := mt.GetStartedEvent().Command.Lookup("deletes").Array().Index(0).Value().Document()
+		require.Equal(mt, jobID, deletes.Lookup("q").Document().Lookup("job_id").ObjectID())
+		require.Error(mt, r.DeleteByJobId("bad"))
+	})
+	mt.Run("delete results of runs", func(mt *mtest.T) {
+		r := &evaluationResultRepository{collection: mt.Coll}
+		runIDs := []primitive.ObjectID{primitive.NewObjectID(), primitive.NewObjectID()}
+		mt.AddMockResponses(mtest.CreateSuccessResponse(bson.E{Key: "n", Value: 4}))
+		require.NoError(mt, r.DeleteByRunIds(runIDs))
+		deletes := mt.GetStartedEvent().Command.Lookup("deletes").Array().Index(0).Value().Document()
+		in := deletes.Lookup("q").Document().Lookup("evaluation_run_id").Document().Lookup("$in").Array()
+		require.Equal(mt, runIDs[0], in.Index(0).Value().ObjectID())
+		require.Equal(mt, runIDs[1], in.Index(1).Value().ObjectID())
+		require.NoError(mt, r.DeleteByRunIds(nil))
+		require.Nil(mt, mt.GetStartedEvent())
+	})
 }

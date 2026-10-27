@@ -39,6 +39,13 @@ func (r *memoryEvaluationRuns) FindById(string) (*models.EvaluationRun, error) {
 	copied := *r.run
 	return &copied, nil
 }
+func (r *memoryEvaluationRuns) FindByJob(string) ([]*models.EvaluationRun, error) {
+	if r.run == nil {
+		return []*models.EvaluationRun{}, nil
+	}
+	copied := *r.run
+	return []*models.EvaluationRun{&copied}, nil
+}
 func (r *memoryEvaluationRuns) FindStale(pluginStartedBefore time.Time) ([]*models.EvaluationRun, error) {
 	if r.staleErr != nil {
 		return nil, r.staleErr
@@ -88,6 +95,14 @@ func (r *memoryEvaluationResults) UpsertAll(results []*models.EvaluationResult) 
 		} // Simulate a partially successful bulk write.
 	}
 	return nil
+}
+
+func (r *memoryEvaluationResults) FindByRun(string) ([]*models.EvaluationResult, error) {
+	results := make([]*models.EvaluationResult, 0, len(r.items))
+	for _, result := range r.items {
+		results = append(results, result)
+	}
+	return results, nil
 }
 
 type evaluationFixture struct {

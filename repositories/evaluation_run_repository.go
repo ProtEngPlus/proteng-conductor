@@ -11,11 +11,13 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type EvaluationRunRepository interface {
 	Create(run *models.EvaluationRun) error
 	FindById(id string) (*models.EvaluationRun, error)
+	FindByJob(jobId string) ([]*models.EvaluationRun, error)
 	Finish(id primitive.ObjectID, state models.EvaluationState, message string) error
 	FindStale(pluginStartedBefore time.Time) ([]*models.EvaluationRun, error)
 	Advance(id primitive.ObjectID, fromIndex int, pluginError string) error
@@ -63,6 +65,25 @@ func (r *evaluationRunRepository) FindById(id string) (*models.EvaluationRun, er
 		return nil, err
 	}
 	return &run, nil
+}
+
+func (r *evaluationRunRepository) FindByJob(jobId string) ([]*models.EvaluationRun, error) {
+	objectID, err := primitive.ObjectIDFromHex(jobId)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	cursor, err := r.collection.Find(ctx, bson.M{"job_id": objectID},
+		options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}}))
+	if err != nil {
+		return nil, err
+	}
+	runs := []*models.EvaluationRun{}
+	if err := cursor.All(ctx, &runs); err != nil {
+		return nil, err
+	}
+	return runs, nil
 }
 
 // Finish only transitions ongoing runs. A repeated callback cannot reopen history.

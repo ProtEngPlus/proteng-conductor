@@ -141,4 +141,54 @@ func TestEvaluationRepositories(t *testing.T) {
 		require.Error(mt, r.UpsertAll(nil))
 		require.Error(mt, r.UpsertAll([]*models.EvaluationResult{nil}))
 	})
+	mt.Run("find runs of a job newest first", func(mt *mtest.T) {
+		r := &evaluationRunRepository{collection: mt.Coll}
+		jobID := primitive.NewObjectID()
+		run := &models.EvaluationRun{Id: primitive.NewObjectID(), JobId: jobID, State: models.EvaluationCompleted}
+		encoded, err := bson.Marshal(run)
+		require.NoError(mt, err)
+		var doc bson.D
+		require.NoError(mt, bson.Unmarshal(encoded, &doc))
+		mt.AddMockResponses(mtest.CreateCursorResponse(0, mt.DB.Name()+".evaluation_runs", mtest.FirstBatch, doc))
+		runs, err := r.FindByJob(jobID.Hex())
+		require.NoError(mt, err)
+		require.Len(mt, runs, 1)
+		require.Equal(mt, run.Id, runs[0].Id)
+		command := mt.GetStartedEvent().Command
+		require.Equal(mt, jobID, command.Lookup("filter").Document().Lookup("job_id").ObjectID())
+		require.Equal(mt, int32(-1), command.Lookup("sort").Document().Lookup("created_at").Int32())
+		mt.AddMockResponses(mtest.CreateCursorResponse(0, mt.DB.Name()+".evaluation_runs", mtest.FirstBatch))
+		runs, err = r.FindByJob(jobID.Hex())
+		require.NoError(mt, err)
+		require.NotNil(mt, runs)
+		require.Empty(mt, runs)
+		_, err = r.FindByJob("bad")
+		require.Error(mt, err)
+	})
+	mt.Run("find results of a run", func(mt *mtest.T) {
+		r := &evaluationResultRepository{collection: mt.Coll}
+		runID := primitive.NewObjectID()
+		result := &models.EvaluationResult{
+			Id: primitive.NewObjectID(), EvaluationRunId: runID, MutationResultId: primitive.NewObjectID(), Plugin: "mock",
+			State: models.EvaluationCompleted, Values: map[string]interface{}{"mock_score": 0.5},
+		}
+		encoded, err := bson.Marshal(result)
+		require.NoError(mt, err)
+		var doc bson.D
+		require.NoError(mt, bson.Unmarshal(encoded, &doc))
+		mt.AddMockResponses(mtest.CreateCursorResponse(0, mt.DB.Name()+".evaluation_results", mtest.FirstBatch, doc))
+		results, err := r.FindByRun(runID.Hex())
+		require.NoError(mt, err)
+		require.Len(mt, results, 1)
+		require.Equal(mt, result.MutationResultId, results[0].MutationResultId)
+		require.Equal(mt, 0.5, results[0].Values["mock_score"])
+		require.Equal(mt, runID, mt.GetStartedEvent().Command.Lookup("filter").Document().Lookup("evaluation_run_id").ObjectID())
+		mt.AddMockResponses(mtest.CreateCursorResponse(0, mt.DB.Name()+".evaluation_results", mtest.FirstBatch))
+		results, err = r.FindByRun(runID.Hex())
+		require.NoError(mt, err)
+		require.NotNil(mt, results)
+		require.Empty(mt, results)
+		_, err = r.FindByRun("bad")
+		require.Error(mt, err)
+	})
 }

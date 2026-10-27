@@ -98,6 +98,7 @@ type evaluationFixture struct {
 	job        *models.Job
 	candidates map[string]*models.MutationResult
 	data       Data
+	jobErr     error // returned by the job lookup instead of the job when set
 }
 
 func newEvaluationFixture(t *testing.T) *evaluationFixture {
@@ -123,7 +124,12 @@ func newEvaluationFixture(t *testing.T) *evaluationFixture {
 		})
 	}
 	WithEvaluationRepositories(f.runs, f.results)(con)
-	deps.jobRepository.EXPECT().FindById(gomock.Any()).DoAndReturn(func(string) (*models.Job, error) { return f.job, nil }).AnyTimes()
+	deps.jobRepository.EXPECT().FindById(gomock.Any()).DoAndReturn(func(string) (*models.Job, error) {
+		if f.jobErr != nil {
+			return nil, f.jobErr
+		}
+		return f.job, nil
+	}).AnyTimes()
 	deps.mutationResultRepository.EXPECT().FindById(gomock.Any()).DoAndReturn(func(id string) (*models.MutationResult, error) {
 		result, ok := f.candidates[id]
 		if !ok {

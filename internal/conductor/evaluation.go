@@ -19,7 +19,7 @@ var ErrInvalidEvaluation = errors.New("invalid evaluation callback")
 
 type Option func(*conductor)
 
-// WithEvaluationRepositories leaves existing constructor callers compatible.
+// WithEvaluationRepositories sets the evaluation run and result repositories.
 func WithEvaluationRepositories(runs repositories.EvaluationRunRepository, results repositories.EvaluationResultRepository) Option {
 	return func(con *conductor) {
 		con.evaluationRunRepository = runs

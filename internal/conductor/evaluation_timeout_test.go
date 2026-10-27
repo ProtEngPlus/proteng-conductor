@@ -63,7 +63,7 @@ func TestSweepStaleEvaluations(t *testing.T) {
 		f.deps.jobRepository.EXPECT().Update(f.job.Id.Hex(), gomock.Any()).Return(nil)
 
 		require.NoError(tt, f.con.sweepStaleEvaluations(cutoff))
-		require.NoError(tt, f.con.sweepStaleEvaluations(cutoff)) // nothing left to sweep
+		require.NoError(tt, f.con.sweepStaleEvaluations(cutoff))
 
 		require.Equal(tt, models.EvaluationFailed, f.runs.run.State)
 		require.Contains(tt, f.runs.run.Error, "timed out")
@@ -76,7 +76,6 @@ func TestSweepStaleEvaluations(t *testing.T) {
 		f := newEvaluationFixture(tt)
 		f.runs.run.PluginStartedAt = cutoff.Add(-time.Minute)
 		f.jobErr = mongo.ErrNoDocuments
-		// no Update expected: there is no job left to complete
 
 		require.NoError(tt, f.con.sweepStaleEvaluations(cutoff))
 
@@ -89,7 +88,6 @@ func TestSweepStaleEvaluations(t *testing.T) {
 		f.job.State = enum.JobStateOnGoing
 		f.runs.run.PluginStartedAt = cutoff.Add(-time.Minute)
 		f.jobErr = errors.New("database unavailable")
-		// no Update expected
 
 		require.NoError(tt, f.con.sweepStaleEvaluations(cutoff))
 

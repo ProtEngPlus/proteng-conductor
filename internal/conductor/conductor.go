@@ -61,7 +61,6 @@ func (con *conductor) Orchestrate(m string) {
 }
 
 // OrchestrateWithError lets the consumer requeue Evaluation storage failures.
-// Existing stage 0-3 handling retains its current behavior.
 func (con *conductor) OrchestrateWithError(m string) error {
 	// Decode the incoming message
 	var payload Payload
@@ -545,7 +544,6 @@ func (con *conductor) updateMutationData(data Data) enum.JobState {
 	if job.State == enum.JobStateCompleted && mutation.RunId == 1 {
 		job.CompleteAt = time.Now()
 	}
-	// Save the job before an evaluation starts; see beginEvaluation.
 	if err := con.jobRepository.Update(data.JobID, job); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
 		return ""

@@ -21,7 +21,7 @@ type dispatchFixture struct {
 	mutation *models.Mutation
 	data     Data
 	sent     []byte
-	events   []string // job saves and plugin dispatches, in call order
+	events   []string
 }
 
 func newDispatchFixture(t *testing.T, runType string, runID int) *dispatchFixture {
@@ -69,7 +69,6 @@ func (f *dispatchFixture) expectMutationStored(jobFinds int) {
 	f.expectJobSaved()
 }
 
-// expectJobSaved expects one more job update and records the saved state.
 func (f *dispatchFixture) expectJobSaved() {
 	f.deps.jobRepository.EXPECT().Update(f.job.Id.Hex(), gomock.Any()).
 		DoAndReturn(func(_ string, j *models.Job) error {
@@ -101,8 +100,6 @@ func TestAfterMutation_autoJobStartsEvaluation(t *testing.T) {
 
 	require.Equal(t, enum.JobStateOnGoing, state)
 	require.Equal(t, enum.JobStateOnGoing, f.job.State)
-	// Saved before the dispatch and never after it: a fast reply may already
-	// have completed the job, and a later save would set it back to ongoing.
 	require.Equal(t, []string{savedOnGoing, "publish"}, f.events)
 	require.Equal(t, 3, f.job.StageId)
 	require.True(t, f.job.CompleteAt.IsZero())
@@ -169,8 +166,6 @@ func TestOrchestrateJob_resumesWaitingEvaluation(t *testing.T) {
 	f.deps.mutationResultRepository.EXPECT().GetAll(gomock.Any()).Return(results, nil)
 	f.expectJobSaved()
 	f.expectDispatch(nil)
-	// no second Update expected: gomock fails the test if the job is saved
-	// after the dispatch, which is the write that could undo a fast reply
 
 	require.NoError(t, f.con.OrchestrateJob(f.job))
 	require.Equal(t, []string{savedOnGoing, "publish"}, f.events)

@@ -41,13 +41,11 @@ func evaluationRequest(job *models.Job, run *models.EvaluationRun, candidates []
 	}
 }
 
-// afterMutation decides the job state once a mutation run has stored its
-// results, and whether an evaluation should start. The job stays at stage 3
-// while an evaluation runs; the EvaluationRun tracks it. The caller saves the
-// job first and only then calls beginEvaluation.
+// afterMutation decides the job state once a mutation run has stored its results.
+// The job stays at stage 3 while an evaluation runs; the EvaluationRun tracks it.
 func afterMutation(job *models.Job, mutation *models.Mutation) (enum.JobState, bool) {
 	if len(job.EvaluationPlugins) == 0 {
-		return enum.JobStateCompleted, false // inherited behaviour: mutation is the last stage
+		return enum.JobStateCompleted, false
 	}
 	// One-step jobs wait for the user like every other stage. Extra mutation
 	// runs (RunId > 1) are started by the user explicitly, so they evaluate at once.
@@ -70,11 +68,6 @@ func (con *conductor) resumeEvaluation(job *models.Job, mutation *models.Mutatio
 	return con.beginEvaluation(job, mutation, results)
 }
 
-// beginEvaluation starts the evaluation of a job that is already saved as
-// ongoing. The save must come first: a plugin can reply, and the consumer can
-// complete the job, before this returns, so saving the caller's copy of the
-// job afterwards would set it back to ongoing for good. The job is saved again
-// only when no plugin received the run, because then no reply can race with it.
 func (con *conductor) beginEvaluation(job *models.Job, mutation *models.Mutation, results []*models.MutationResult) error {
 	err := con.startEvaluation(job, mutation, results)
 	if err == nil {

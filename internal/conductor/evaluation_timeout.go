@@ -15,8 +15,7 @@ import (
 const (
 	// evaluationTimeout is how long a run may stay ongoing without a result.
 	// It leaves room for slow plugins such as DDGemb on many mutants.
-	evaluationTimeout = 30 * time.Minute
-	// evaluationSweepInterval is how often ongoing runs are checked.
+	evaluationTimeout       = 30 * time.Minute
 	evaluationSweepInterval = time.Minute
 )
 
@@ -55,14 +54,10 @@ func (con *conductor) sweepStaleEvaluations(pluginStartedBefore time.Time) error
 			run.CurrentPlugin(), run.CurrentPlugin(), evaluationTimeout)
 		job, candidates, err := con.evaluationContext(run)
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			// The job or a candidate was deleted, so no plugin can score this
-			// run and every later sweep would fail the same way: stop it here.
 			con.stopOrphanedRun(run, fmt.Sprintf("%s; run stopped: %v", pluginError, err))
 			continue
 		}
 		if err != nil {
-			// Probably temporary (e.g. the database is unreachable): keep the
-			// run ongoing and try again on the next sweep.
 			logger.Errorf("Conductor: evaluation sweeper: run %s: %v", run.Id.Hex(), err)
 			continue
 		}
@@ -73,9 +68,6 @@ func (con *conductor) sweepStaleEvaluations(pluginStartedBefore time.Time) error
 	return nil
 }
 
-// stopOrphanedRun finishes a run whose job or candidates no longer exist as
-// failed, without trying its remaining plugins, and completes the job if it
-// still exists and waits at stage 3.
 func (con *conductor) stopOrphanedRun(run *models.EvaluationRun, reason string) {
 	if err := con.finishRun(run, reason); err != nil && !errors.Is(err, repositories.ErrEvaluationRunChanged) {
 		logger.Errorf("Conductor: evaluation sweeper: run %s: finish: %v", run.Id.Hex(), err)
@@ -86,7 +78,6 @@ func (con *conductor) stopOrphanedRun(run *models.EvaluationRun, reason string) 
 	}
 }
 
-// evaluationContext loads what dispatching the run's next plugin needs.
 func (con *conductor) evaluationContext(run *models.EvaluationRun) (*models.Job, []*models.MutationResult, error) {
 	job, err := con.jobRepository.FindById(run.JobId.Hex())
 	if err != nil {

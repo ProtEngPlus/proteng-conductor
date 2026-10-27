@@ -98,7 +98,7 @@ type evaluationFixture struct {
 	job        *models.Job
 	candidates map[string]*models.MutationResult
 	data       Data
-	jobErr     error // returned by the job lookup instead of the job when set
+	jobErr     error
 }
 
 func newEvaluationFixture(t *testing.T) *evaluationFixture {
@@ -172,7 +172,7 @@ func TestEvaluationCompletionAndRedelivery(t *testing.T) {
 func TestEvaluationFailure(t *testing.T) {
 	f := newEvaluationFixture(t)
 	f.data.Status, f.data.Error, f.data.EvaluationResults = "FAILED", "mock failed", nil
-	f.con.Orchestrate(f.message(t)) // The existing entry point also reaches Evaluation.
+	f.con.Orchestrate(f.message(t))
 	require.Equal(t, models.EvaluationFailed, f.runs.run.State)
 	for _, result := range f.results.items {
 		require.Equal(t, models.EvaluationFailed, result.State)
@@ -265,9 +265,7 @@ func TestEvaluationMalformedJSONAndMissingRepositories(t *testing.T) {
 	require.Zero(t, f.results.writes)
 }
 
-// These fixtures were emitted by the uploaded 3.1 thread.py/mq.py, with only
-// the RabbitMQ publisher replaced by a capture function and timestamp normalized.
-func TestEvaluationUploadedWorkerCallbacks(t *testing.T) {
+func TestEvaluationMockWorkerCallbacks(t *testing.T) {
 	for _, status := range []string{"completed", "failed"} {
 		t.Run(status, func(t *testing.T) {
 			f := newEvaluationFixture(t)

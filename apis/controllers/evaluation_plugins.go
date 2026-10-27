@@ -7,9 +7,8 @@ import (
 )
 
 // validateEvaluationPlugins checks the optional BLX01 plugin selection of a job
-// or configuration. No plugins keeps the inherited behaviour (the job ends after
-// mutation). Only registered names are accepted, because each name becomes the
-// RabbitMQ routing key evaluation.<plugin>.
+// or configuration. Only registered names are accepted, because each name becomes
+// the RabbitMQ routing key evaluation.<plugin>.
 func validateEvaluationPlugins(plugins []string) error {
 	seen := make(map[string]bool, len(plugins))
 	for _, plugin := range plugins {

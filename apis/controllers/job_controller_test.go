@@ -128,7 +128,7 @@ func TestJobControllerAssay(t *testing.T) {
 
 	t.Run("changing the assay type moves the job's results", func(tt *testing.T) {
 		_, router, m := setup(tt)
-		oldJob := &models.Job{Id: primitive.NewObjectID(), UserId: "owner", Name: "J"}
+		oldJob := &models.Job{Id: primitive.NewObjectID(), UserId: "owner", Name: "J", InputProtein: "MKV"}
 		jobId := oldJob.Id.Hex()
 		m.jr.EXPECT().FindById(jobId).Return(oldJob, nil)
 		m.atr.EXPECT().FindById(typeId).Return(assayType, nil).Times(2)
@@ -189,6 +189,7 @@ func TestJobControllerAssay(t *testing.T) {
 		oldJob := &models.Job{
 			Id:               primitive.NewObjectID(),
 			UserId:           "owner",
+			InputProtein:     "MKV",
 			AssayTypeId:      assayType.Id,
 			LibraryResultIds: []primitive.ObjectID{libraryResult.Id},
 			LabResult:        models.LabResult{Total: 1, Sequences: []string{"mkv"}, Scores: []float32{2}, Sources: []string{models.SourceLibrary}},
@@ -209,7 +210,7 @@ func TestJobControllerAssay(t *testing.T) {
 
 	t.Run("update rejects duplicate sequences before saving", func(tt *testing.T) {
 		_, router, m := setup(tt)
-		oldJob := &models.Job{Id: primitive.NewObjectID(), UserId: "owner", AssayTypeId: assayType.Id, LibraryResultIds: []primitive.ObjectID{libraryResult.Id}}
+		oldJob := &models.Job{Id: primitive.NewObjectID(), UserId: "owner", InputProtein: "MKV", AssayTypeId: assayType.Id, LibraryResultIds: []primitive.ObjectID{libraryResult.Id}}
 		m.jr.EXPECT().FindById(oldJob.Id.Hex()).Return(oldJob, nil)
 		m.atr.EXPECT().FindById(typeId).Return(assayType, nil)
 		m.exr.EXPECT().GetByIds([]string{libraryId}).Return([]*models.ExperimentalResult{libraryResult}, nil).AnyTimes()

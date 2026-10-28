@@ -48,6 +48,21 @@ func (mr *MockJobRepositoryMockRecorder) AddErrorLog(id, log interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddErrorLog", reflect.TypeOf((*MockJobRepository)(nil).AddErrorLog), id, log)
 }
 
+// CountByAssayType mocks base method.
+func (m *MockJobRepository) CountByAssayType(assayTypeId string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountByAssayType", assayTypeId)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountByAssayType indicates an expected call of CountByAssayType.
+func (mr *MockJobRepositoryMockRecorder) CountByAssayType(assayTypeId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByAssayType", reflect.TypeOf((*MockJobRepository)(nil).CountByAssayType), assayTypeId)
+}
+
 // Create mocks base method.
 func (m *MockJobRepository) Create(job *models.Job) error {
 	m.ctrl.T.Helper()

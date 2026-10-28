@@ -49,6 +49,7 @@ func main() {
 	mutationResultRepository := repositories.NewMutationResultRepository()
 	configurationRepository := repositories.NewConfigurationRepository()
 	experimentalResultRepository := repositories.NewExperimentalResultRepository()
+	assayTypeRepository := repositories.NewAssayTypeRepository()
 
 	// conductor
 	rabbitPublisher := rmqPublisher.NewPublisher()
@@ -81,9 +82,10 @@ func main() {
 	})
 
 	// routes
-	routes.JobRoute(router, jobRepository, mutationRepository, mutationResultRepository, configurationRepository, queryResultRepository, experimentalResultRepository, conductor)
+	routes.JobRoute(router, jobRepository, mutationRepository, mutationResultRepository, configurationRepository, queryResultRepository, experimentalResultRepository, assayTypeRepository, conductor)
 	routes.MutationRoute(router, jobRepository, mutationRepository, mutationResultRepository, experimentalResultRepository, conductor)
-	routes.ExperimentalResultRoute(router, mutationResultRepository, experimentalResultRepository)
+	routes.ExperimentalResultRoute(router, mutationResultRepository, experimentalResultRepository, jobRepository, assayTypeRepository)
+	routes.AssayTypeRoute(router, assayTypeRepository, experimentalResultRepository, mutationResultRepository, jobRepository)
 	routes.ArtifactRoute(router, storageService)
 	routes.UniProtRoute(router, storageService)
 	routes.QueryResultRoute(router, jobRepository, queryResultRepository, conductor)

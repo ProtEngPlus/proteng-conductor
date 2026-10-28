@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/protengplus/proteng-conductor/internal/validator"
@@ -10,17 +11,52 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+const (
+	SourceUpload  = "upload"
+	SourceManual  = "manual"
+	SourceLibrary = "library"
+)
+
 type LabResult struct {
 	Total     int       `bson:"total" json:"total" validate:"gte=0"`
 	Sequences []string  `bson:"sequences" json:"sequences" validate:"required"`
 	Scores    []float32 `bson:"scores" json:"scores" validate:"required"`
+	Sources   []string  `bson:"sources,omitempty" json:"sources,omitempty"`
 }
 
 func (lr LabResult) Validate() error {
 	if lr.Total != len(lr.Sequences) || lr.Total != len(lr.Scores) {
 		return fmt.Errorf("data length mismatch")
 	}
+	if len(lr.Sources) > 0 {
+		if len(lr.Sources) != lr.Total {
+			return fmt.Errorf("sources length mismatch")
+		}
+		for _, source := range lr.Sources {
+			if source != SourceUpload && source != SourceManual && source != SourceLibrary {
+				return fmt.Errorf("invalid source %q", source)
+			}
+		}
+	}
+	if repeated := lr.RepeatedSequences(); len(repeated) > 0 {
+		return fmt.Errorf("duplicate sequences: %s", strings.Join(repeated, ","))
+	}
 	return nil
+}
+
+func (lr LabResult) RepeatedSequences() []string {
+	seen := map[string]bool{}
+	reported := map[string]bool{}
+	repeated := []string{}
+	for _, sequence := range lr.Sequences {
+		key := strings.ToUpper(sequence)
+		if seen[key] && !reported[key] {
+			reported[key] = true
+			repeated = append(repeated, key)
+		}
+		seen[key] = true
+	}
+	return repeated
 }
 
 type UniProtSequence struct {
@@ -51,6 +87,9 @@ type Job struct {
 	StageId          int                     `bson:"stage_id" json:"stage_id" validate:"gte=0,lte=3"`
 	UserId           string                  `bson:"user_id" json:"user_id" validate:"required"`
 	RefJobId         primitive.ObjectID      `bson:"ref_job_id" json:"ref_job_id"`
+	AssayTypeId      primitive.ObjectID      `bson:"assay_type_id" json:"assay_type_id"`
+	AssayTypeName    string                  `bson:"-" json:"assay_type_name"`
+	LibraryResultIds []primitive.ObjectID    `bson:"library_result_ids" json:"library_result_ids"`
 	LabResult        LabResult               `bson:"lab_result" json:"lab_result" validate:"omitempty"`
 	Options          map[string]interface{}  `bson:"options" json:"options" validate:"required"`
 	Artifacts        map[string]Artifact     `bson:"artifact" json:"artifact"`
@@ -69,6 +108,7 @@ type Job struct {
 type Configuration struct {
 	Id               primitive.ObjectID     `bson:"_id" json:"id"`
 	RefJobId         primitive.ObjectID     `bson:"ref_job_id" json:"ref_job_id" validate:"required"`
+	AssayTypeId      primitive.ObjectID     `bson:"assay_type_id" json:"assay_type_id"`
 	State            enum.JobState          `bson:"state" json:"state"`
 	StageId          int                    `bson:"stage_id" json:"stage_id" validate:"gte=0,lte=3"`
 	Name             string                 `bson:"name" json:"name" validate:"required"`

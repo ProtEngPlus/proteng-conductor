@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/protengplus/proteng-conductor/models"
 	"github.com/protengplus/proteng-conductor/repositories"
@@ -14,10 +15,12 @@ import (
 type ExperimentalResultController struct {
 	mutationResultRepository     repositories.MutationResultRepository
 	experimentalResultRepository repositories.ExperimentalResultRepository
+	jobRepository                repositories.JobRepository
+	assayTypeRepository          repositories.AssayTypeRepository
 }
 
-func NewExperimentalResultController(mutationResultRepository repositories.MutationResultRepository, experimentalResultRepository repositories.ExperimentalResultRepository) *ExperimentalResultController {
-	return &ExperimentalResultController{mutationResultRepository: mutationResultRepository, experimentalResultRepository: experimentalResultRepository}
+func NewExperimentalResultController(mutationResultRepository repositories.MutationResultRepository, experimentalResultRepository repositories.ExperimentalResultRepository, jobRepository repositories.JobRepository, assayTypeRepository repositories.AssayTypeRepository) *ExperimentalResultController {
+	return &ExperimentalResultController{mutationResultRepository: mutationResultRepository, experimentalResultRepository: experimentalResultRepository, jobRepository: jobRepository, assayTypeRepository: assayTypeRepository}
 }
 
 // GetAllExperimentalResults retrieves all experimental results
@@ -77,6 +80,10 @@ func (erc *ExperimentalResultController) UpsertExperimentalResult(c *gin.Context
 	experimentalResult.MutationResultId = mutationResult.Id
 	experimentalResult.MutationId = mutationResult.MutationId
 	experimentalResult.JobId = mutationResult.JobId
+	experimentalResult.ProteinSequence = mutationResult.ProteinSequence
+	if job, err := erc.jobRepository.FindById(mutationResult.JobId.Hex()); err == nil {
+		experimentalResult.AssayTypeId = job.AssayTypeId
+	}
 	if experimentalResult.MeasuredAt.IsZero() {
 		experimentalResult.MeasuredAt = time.Now()
 	}
@@ -109,4 +116,44 @@ func (erc *ExperimentalResultController) DeleteExperimentalResult(c *gin.Context
 	}
 
 	apiutil.ApiResponseOk(c, nil)
+}
+
+// ExportExperimentalResults downloads the experimental results of one job as a headerless sequence,score csv
+func (erc *ExperimentalResultController) ExportExperimentalResults(c *gin.Context) {
+	userId := c.Query("user_id")
+	if userId == "" {
+		apiutil.ApiResponseErrorBadRequest(c, nil, "error: missing user_id")
+		return
+	}
+
+	jobId := c.Query("job_id")
+	job, err := erc.jobRepository.FindById(jobId)
+	if err != nil {
+		apiutil.ApiResponseNotFound(c, err)
+		return
+	}
+	if job.UserId != userId {
+		apiutil.ApiResponseForbidden(c, fmt.Errorf("error: job does not belong to user"))
+		return
+	}
+
+	results, err := erc.experimentalResultRepository.GetAll(map[string]interface{}{"job_id": jobId, "user_id": userId})
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+	results = dedupeResults(results)
+	if len(results) == 0 {
+		apiutil.ApiResponseNotFound(c, fmt.Errorf("error: no results to export"))
+		return
+	}
+
+	assayTypeName := ""
+	if job.AssayTypeId != primitive.NilObjectID {
+		if assayType, err := erc.assayTypeRepository.FindById(job.AssayTypeId.Hex()); err == nil {
+			assayTypeName = assayType.Name
+		}
+	}
+
+	writeResultsCsv(c, exportFileName(job.Name, assayTypeName), results)
 }

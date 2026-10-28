@@ -151,6 +151,11 @@ func (jc *JobController) CreateJob(c *gin.Context) {
 		return
 	}
 
+	if err := validateSequences(job.InputProtein, job.LabResult); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid sequence")
+		return
+	}
+
 	err = validateJobOptions(&job)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
@@ -211,6 +216,11 @@ func (jc *JobController) UpdateJob(c *gin.Context) {
 	err = c.BindJSON(&job)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
+		return
+	}
+
+	if err := validateSequences(job.InputProtein, job.LabResult); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid sequence")
 		return
 	}
 
@@ -320,6 +330,11 @@ func (jc *JobController) CreateConfigurations(c *gin.Context) {
 	err := c.BindJSON(&configuration)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
+		return
+	}
+
+	if err := validateSequences(configuration.InputProtein, configuration.LabResult); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid sequence")
 		return
 	}
 

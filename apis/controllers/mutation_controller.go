@@ -166,6 +166,12 @@ func (mc *MutationController) CreateMutation(c *gin.Context) {
 		return
 	}
 
+	err = validateProteinSequence("input protein", mutation.InputProtein)
+	if err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid sequence")
+		return
+	}
+
 	err = validateServiceOptions(mutation.Tool, mutation.Options, mutation.InputProtein)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")

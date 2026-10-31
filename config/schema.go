@@ -7,6 +7,13 @@ func GetSchema(schemaName string) string {
 	return `{}`
 }
 
+// EvaluationPluginSchemas lists the BLX01 evaluation plugins a job may select.
+// The key is the plugin name used in the routing key evaluation.<plugin>,
+// the value is the JSON schema of that plugin's options.
+var EvaluationPluginSchemas = map[string]string{
+	"mock": `{"$schema": "http://json-schema.org/draft-04/schema#", "type": "object"}`,
+}
+
 // Schemas is a map of service names to their respective options in JSON schemas format
 // Further information on JSON schemas can be found at https://json-schema.org/
 var Schemas = map[string]string{

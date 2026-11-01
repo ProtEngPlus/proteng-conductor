@@ -93,6 +93,8 @@ func newSequenceTestJobController(t *testing.T) (*JobController, *mock_repositor
 		mock_repository.NewMockConfigurationRepository(ctrl),
 		mock_repository.NewMockQueryResultRepository(ctrl),
 		mock_repository.NewMockExperimentalResultRepository(ctrl),
+		nil,
+		nil,
 		&fakeConductor{},
 	)
 	return controller, jobs

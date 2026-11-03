@@ -123,6 +123,8 @@ type evaluationFixture struct {
 	candidates map[string]*models.MutationResult
 	data       Data
 	jobErr     error
+	latest     []latestEvaluation
+	latestErr  error
 }
 
 func newEvaluationFixture(t *testing.T) *evaluationFixture {
@@ -161,6 +163,7 @@ func newEvaluationFixture(t *testing.T) *evaluationFixture {
 		}
 		return result, nil
 	}).AnyTimes()
+	recordLatestEvaluations(deps, &f.latest, &f.latestErr)
 	// No Update or publish expectations: a job that is not waiting at stage 3
 	// (the fixture job is already COMPLETED) must be left alone.
 	return f
@@ -191,6 +194,7 @@ func TestEvaluationCompletionAndRedelivery(t *testing.T) {
 	require.Equal(t, 1, f.results.writes)
 	require.Equal(t, 1, f.runs.finishes)
 	require.Equal(t, models.EvaluationCompleted, f.runs.run.State)
+	require.Equal(t, []latestEvaluation{{"finish", f.runs.run.Id, models.EvaluationCompleted}}, f.latest)
 }
 
 func TestEvaluationFailure(t *testing.T) {
@@ -206,6 +210,7 @@ func TestEvaluationFailure(t *testing.T) {
 	require.Equal(t, enum.JobStateCompleted, f.job.State)
 	require.NoError(t, f.con.OrchestrateWithError(f.message(t)))
 	require.Equal(t, 1, f.results.writes)
+	require.Equal(t, []latestEvaluation{{"finish", f.runs.run.Id, models.EvaluationFailed}}, f.latest)
 }
 
 func TestEvaluationRejectsInvalidCallbacksBeforeWriting(t *testing.T) {

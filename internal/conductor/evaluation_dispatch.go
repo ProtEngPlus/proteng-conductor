@@ -105,6 +105,7 @@ func (con *conductor) startEvaluation(job *models.Job, mutation *models.Mutation
 	if err := con.evaluationRunRepository.Create(run); err != nil {
 		return nil, fmt.Errorf("create evaluation run: %w", err)
 	}
+	con.recordJobEvaluation(job.Id.Hex(), run.Id, models.EvaluationOngoing)
 	dispatched, err := con.dispatchCurrentPlugin(job, run, candidates)
 	if err != nil {
 		return nil, err
@@ -143,6 +144,24 @@ func (con *conductor) dispatchCurrentPlugin(job *models.Job, run *models.Evaluat
 			return false, fmt.Errorf("advance evaluation run: %w", err)
 		}
 	}
+}
+
+// recordJobEvaluation keeps the job's evaluation_state in step with its latest
+// run. It is display data, so a failed write is logged and never stops the run.
+func (con *conductor) recordJobEvaluation(jobID string, runID primitive.ObjectID, state models.EvaluationState) {
+	var err error
+	if state == models.EvaluationCompleted || state == models.EvaluationFailed {
+		err = con.jobRepository.FinishLatestEvaluation(jobID, runID, state)
+	} else {
+		err = con.jobRepository.SetLatestEvaluation(jobID, runID, state)
+	}
+	if err != nil {
+		logger.Errorf("Conductor: JobID %s: record evaluation state %s: %v", jobID, state, err)
+	}
+}
+
+func (con *conductor) markEvaluationPending(jobID string) {
+	con.recordJobEvaluation(jobID, primitive.NilObjectID, models.EvaluationPending)
 }
 
 var (

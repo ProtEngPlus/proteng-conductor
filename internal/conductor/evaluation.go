@@ -193,7 +193,11 @@ func (con *conductor) finishRun(run *models.EvaluationRun, pluginError string) e
 	if len(errs) > 0 {
 		state, message = models.EvaluationFailed, strings.Join(errs, "; ")
 	}
-	return con.evaluationRunRepository.Finish(run.Id, state, message)
+	if err := con.evaluationRunRepository.Finish(run.Id, state, message); err != nil {
+		return err
+	}
+	con.recordJobEvaluation(run.JobId.Hex(), run.Id, state)
+	return nil
 }
 
 // completeEvaluatedJob completes a job that waits at stage 3 for its evaluation.

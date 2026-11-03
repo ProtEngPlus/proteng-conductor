@@ -33,7 +33,7 @@ func jsonOptions(t *testing.T, raw string) map[string]interface{} {
 
 func mutationJSON(extra string) string {
 	base := `"temperature": 0.01, "num_iterations": 25, "num_trajectories": 5,
-		"num_mutations_low": 1, "num_mutations_high": 3, "amino_acid_set": "20 standard"`
+		"num_mutations_low": 1, "num_mutations_high": 3`
 	if extra == "" {
 		return "{" + base + "}"
 	}
@@ -49,14 +49,13 @@ func TestValidateServiceOptions_Mutation_Accepts(t *testing.T) {
 		"empty regions":                  mutationJSON(`"mutate_regions": []`),
 		"regions in any order":           mutationJSON(`"mutate_regions": [[18, 25], [3, 10]]`),
 		"regions that only touch":        mutationJSON(`"mutate_regions": [[3, 10], [11, 15]]`),
-		"first position only":            `{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 5, "num_mutations_low": 1, "num_mutations_high": 1, "amino_acid_set": "20 standard", "mutate_regions": [[1, 1]]}`,
+		"first position only":            `{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 5, "num_mutations_low": 1, "num_mutations_high": 1, "mutate_regions": [[1, 1]]}`,
 		"up to the last position":        mutationJSON(`"mutate_regions": [[40, 47]]`),
-		"single region, one trajectory":  `{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 1, "num_mutations_low": 1, "num_mutations_high": 3, "amino_acid_set": "20 standard", "mutate_regions": [[3, 10]]}`,
-		"fewest trajectories for two":    `{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 3, "num_mutations_low": 1, "num_mutations_high": 3, "amino_acid_set": "20 standard", "mutate_regions": [[3, 10], [18, 25]]}`,
-		"amino acid set with U":          `{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 5, "num_mutations_low": 1, "num_mutations_high": 3, "amino_acid_set": "20 standard + U"}`,
-		"exact number of mutations":      `{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 5, "num_mutations_low": 2, "num_mutations_high": 2, "amino_acid_set": "20 standard"}`,
+		"single region, one trajectory":  `{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 1, "num_mutations_low": 1, "num_mutations_high": 3, "mutate_regions": [[3, 10]]}`,
+		"fewest trajectories for two":    `{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 3, "num_mutations_low": 1, "num_mutations_high": 3, "mutate_regions": [[3, 10], [18, 25]]}`,
+		"exact number of mutations":      `{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 5, "num_mutations_low": 2, "num_mutations_high": 2}`,
 		"leftover mutate_pos_range":      mutationJSON(`"mutate_pos_range": 5`),
-		"ten regions with eleven trajec": `{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 11, "num_mutations_low": 1, "num_mutations_high": 3, "amino_acid_set": "20 standard", "mutate_regions": [[1, 2], [4, 5], [7, 8], [10, 11], [13, 14], [16, 17], [19, 20], [22, 23], [25, 26], [28, 29]]}`,
+		"ten regions with eleven trajec": `{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 11, "num_mutations_low": 1, "num_mutations_high": 3, "mutate_regions": [[1, 2], [4, 5], [7, 8], [10, 11], [13, 14], [16, 17], [19, 20], [22, 23], [25, 26], [28, 29]]}`,
 	}
 
 	for name, raw := range tests {
@@ -79,11 +78,6 @@ func TestValidateServiceOptions_Mutation_Rejects(t *testing.T) {
 			`{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 5, "mutate_pos_range": 5}`,
 			"num_mutations_low",
 		},
-		"missing amino_acid_set": {
-			`{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 5, "num_mutations_low": 1, "num_mutations_high": 3}`,
-			"amino_acid_set",
-		},
-		"unknown amino_acid_set":             {mutationJSON(`"amino_acid_set": "everything"`), "amino_acid_set"},
 		"low below one":                      {mutationJSON(`"num_mutations_low": 0`), "num_mutations_low"},
 		"low is not an integer":              {mutationJSON(`"num_mutations_low": 1.5`), "num_mutations_low"},
 		"high below low":                     {mutationJSON(`"num_mutations_low": 3, "num_mutations_high": 2`), "must be at least num_mutations_low"},
@@ -100,7 +94,7 @@ func TestValidateServiceOptions_Mutation_Rejects(t *testing.T) {
 		"overlap found when out of order":    {mutationJSON(`"mutate_regions": [[18, 25], [3, 10], [20, 30]]`), "overlap"},
 		"more mutations than the region has": {mutationJSON(`"mutate_regions": [[3, 4]]`), "positions that can mutate"},
 		"a region smaller than the minimum": {
-			`{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 5, "num_mutations_low": 3, "num_mutations_high": 3, "amino_acid_set": "20 standard", "mutate_regions": [[3, 4], [10, 20]]}`,
+			`{"temperature": 0.01, "num_iterations": 25, "num_trajectories": 5, "num_mutations_low": 3, "num_mutations_high": 3, "mutate_regions": [[3, 4], [10, 20]]}`,
 			"fewer than num_mutations_low",
 		},
 		"two regions with two trajectories": {mutationJSON(`"num_trajectories": 2, "mutate_regions": [[3, 10], [18, 25]]`), "num_trajectories"},

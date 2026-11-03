@@ -151,9 +151,19 @@ func (jc *JobController) CreateJob(c *gin.Context) {
 		return
 	}
 
+	if err := validateSequences(job.InputProtein, job.LabResult); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid sequence")
+		return
+	}
+
 	err = validateJobOptions(&job)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
+		return
+	}
+
+	if err := validateEvaluationPlugins(job.EvaluationPlugins); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid evaluation plugins")
 		return
 	}
 
@@ -211,6 +221,11 @@ func (jc *JobController) UpdateJob(c *gin.Context) {
 	err = c.BindJSON(&job)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
+		return
+	}
+
+	if err := validateSequences(job.InputProtein, job.LabResult); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid sequence")
 		return
 	}
 
@@ -323,9 +338,19 @@ func (jc *JobController) CreateConfigurations(c *gin.Context) {
 		return
 	}
 
+	if err := validateSequences(configuration.InputProtein, configuration.LabResult); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid sequence")
+		return
+	}
+
 	err = validateConfigurationOptions(&configuration)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
+		return
+	}
+
+	if err := validateEvaluationPlugins(configuration.EvaluationPlugins); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid evaluation plugins")
 		return
 	}
 

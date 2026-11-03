@@ -51,8 +51,14 @@ func main() {
 	experimentalResultRepository := repositories.NewExperimentalResultRepository()
 
 	// conductor
+	evaluationRunRepository := repositories.NewEvaluationRunRepository()
+	evaluationResultRepository, err := repositories.NewEvaluationResultRepository()
+	if err != nil {
+		logger.Fatalf("Failed to initialize Evaluation result repository: %v", err)
+	}
 	rabbitPublisher := rmqPublisher.NewPublisher()
-	conductor := conductor.NewConductor(jobRepository, mutationRepository, queryResultRepository, mutationResultRepository, rabbitPublisher)
+	conductor := conductor.NewConductor(jobRepository, mutationRepository, queryResultRepository, mutationResultRepository, rabbitPublisher,
+		conductor.WithEvaluationRepositories(evaluationRunRepository, evaluationResultRepository))
 	rabbitConsumer := rmqConsumer.NewConsumer(conductor)
 
 	amqpURL := config.Config.RabbitMqUrl
@@ -63,6 +69,13 @@ func main() {
 		if err != nil {
 			logger.Fatalf("Error in RabbitMQ Consumer: %v", err)
 		}
+	}()
+
+	// fail evaluation runs that never got a result, so their jobs do not stay ongoing
+	sweeperDone := make(chan struct{})
+	go func() {
+		defer close(sweeperDone)
+		conductor.RunEvaluationSweeper(ctx)
 	}()
 
 	// storage service
@@ -116,6 +129,11 @@ func main() {
 	case <-consumerDone:
 	case <-shutdownCtx.Done():
 		logger.Errorf("Consumer did not stop before shutdown timeout")
+	}
+	select {
+	case <-sweeperDone:
+	case <-shutdownCtx.Done():
+		logger.Errorf("Evaluation sweeper did not stop before shutdown timeout")
 	}
 
 	if err := database.Client.Disconnect(shutdownCtx); err != nil {

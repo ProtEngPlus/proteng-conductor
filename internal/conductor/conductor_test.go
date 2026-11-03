@@ -393,6 +393,7 @@ func TestConductor_updateJobData_mutationNotification(t *testing.T) {
 		job := newJob()
 		deps.jobRepository.EXPECT().FindById(job.Id.Hex()).Return(job, nil).Times(2)
 		deps.mutationRepository.EXPECT().FindById(mutationID.Hex()).Return(&models.Mutation{Id: mutationID}, nil)
+		deps.mutationResultRepository.EXPECT().DeleteByMutationId(mutationID.Hex()).Return(nil)
 		deps.mutationRepository.EXPECT().Update(mutationID.Hex(), gomock.Any()).Return(nil)
 		deps.jobRepository.EXPECT().Update(job.Id.Hex(), gomock.Any()).Return(nil)
 		expectStatusEmail(tt, deps, enum.JobStateCompleted)
@@ -441,6 +442,7 @@ func TestShouldNotify(t *testing.T) {
 		{"one-step emails when waiting for the next step", true, "one-step", enum.JobStatePending, true},
 		{"one-step emails on completion", true, "one-step", enum.JobStateCompleted, true},
 		{"one-step emails on failure", true, "one-step", enum.JobStateFailed, true},
+		{"one-step skips a running evaluation", true, "one-step", enum.JobStateOnGoing, false},
 		{"auto skips stages still running", true, "auto", enum.JobStateOnGoing, false},
 		{"auto emails on completion", true, "auto", enum.JobStateCompleted, true},
 		{"auto emails on failure", true, "auto", enum.JobStateFailed, true},

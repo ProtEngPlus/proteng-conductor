@@ -463,6 +463,11 @@ func (con *conductor) updateMutationData(data Data) enum.JobState {
 		return ""
 	}
 
+	if mutation.State == enum.MutationStateCompleted || mutation.State == enum.MutationStateFailed {
+		logger.Warnf("Conductor: updateMutationData: JobID %s: ignoring result for mutation %s, it is already %s", data.JobID, data.MutationID, mutation.State)
+		return ""
+	}
+
 	if data.Status == string(enum.JobStateFailed) {
 		mutation.State = enum.MutationStateFailed
 		logger.Infof("Conductor: updateMutationData: Mutation %s failed: %v", data.JobID, data.Error)
@@ -524,8 +529,13 @@ func (con *conductor) updateMutationData(data Data) enum.JobState {
 		logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
 		return ""
 	}
-
-	return enum.JobStateCompleted
+	if evaluate {
+		if err := con.beginEvaluation(job, mutation, stored); err != nil {
+			logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
+			return ""
+		}
+	}
+	return job.State
 }
 
 func (con *conductor) sendJobToPipelineComponent(stageId int, tool string, request PipelineRequest) error {
@@ -590,7 +600,7 @@ func getNextStage(job models.Job, data Data) (state enum.JobState, stage_id int)
 }
 
 func shouldNotify(job *models.Job, state enum.JobState) bool {
-	if !job.IsNotificationOn {
+	if !job.IsNotificationOn || state == enum.JobStateOnGoing {
 		return false
 	}
 	if job.RunType != "auto" {
@@ -600,7 +610,7 @@ func shouldNotify(job *models.Job, state enum.JobState) bool {
 }
 
 func (con *conductor) notifyJobStatus(job *models.Job, state enum.JobState) {
-	if !shouldNotify(job, state) {
+	if !shouldNotify(job, state) || job.StageId >= len(job.Meta) {
 		return
 	}
 	con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, state, job.StageId, job.Meta[job.StageId])

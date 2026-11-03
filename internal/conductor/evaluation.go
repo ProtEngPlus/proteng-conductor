@@ -217,8 +217,6 @@ func (con *conductor) completeEvaluatedJob(run *models.EvaluationRun) error {
 	if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
 		return fmt.Errorf("complete evaluated job: %w", err)
 	}
-	if job.IsNotificationOn && job.StageId < len(job.Meta) {
-		con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateCompleted, job.StageId, job.Meta[job.StageId])
-	}
+	con.notifyJobStatus(job, enum.JobStateCompleted)
 	return nil
 }

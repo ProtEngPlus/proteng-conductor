@@ -75,3 +75,17 @@ func ApiResponseForbidden(c *gin.Context, err error, messages ...string) {
 		Message: messages[0],
 	})
 }
+
+func ApiResponseConflict(c *gin.Context, err error, messages ...string) {
+	if len(messages) == 0 {
+		messages = append(messages, "")
+	}
+	if err == nil {
+		err = fmt.Errorf("conflict")
+	}
+	c.JSON(http.StatusConflict, models.HttpResponseError{
+		Code:    http.StatusConflict,
+		Error:   err.Error(),
+		Message: messages[0],
+	})
+}

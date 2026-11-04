@@ -25,6 +25,7 @@ type JobRepository interface {
 	Delete(id string) error
 	GetAll(query map[string]interface{}) ([]*models.Job, error)
 	AddErrorLog(id string, log string) error
+	CountByAssayType(assayTypeId string) (int64, error)
 }
 
 type jobRepository struct {
@@ -201,6 +202,8 @@ func (jr *jobRepository) Update(id string, job *models.Job) error {
 			"name":               job.Name,
 			"state":              string(job.State),
 			"stage_id":           job.StageId,
+			"assay_type_id":      job.AssayTypeId,
+			"library_result_ids": job.LibraryResultIds,
 			"lab_result":         job.LabResult,
 			"options":            job.Options,
 			"artifact":           job.Artifacts,
@@ -273,4 +276,16 @@ func (jr *jobRepository) AddErrorLog(id string, log string) error {
 	}
 
 	return nil
+}
+
+func (jr *jobRepository) CountByAssayType(assayTypeId string) (int64, error) {
+	objectId, err := primitive.ObjectIDFromHex(assayTypeId)
+	if err != nil {
+		return 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	return jr.collection.CountDocuments(ctx, bson.M{"assay_type_id": objectId})
 }

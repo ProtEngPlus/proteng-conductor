@@ -3,6 +3,7 @@ package conductor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -15,11 +16,13 @@ import (
 )
 
 type conductor struct {
-	jobRepository            repositories.JobRepository
-	mutationRepository       repositories.MutationRepository
-	queryResultRepository    repositories.QueryResultRepository
-	mutationResultRepository repositories.MutationResultRepository
-	publisher                rmqPublisher.Publisher
+	jobRepository              repositories.JobRepository
+	mutationRepository         repositories.MutationRepository
+	queryResultRepository      repositories.QueryResultRepository
+	mutationResultRepository   repositories.MutationResultRepository
+	publisher                  rmqPublisher.Publisher
+	evaluationRunRepository    repositories.EvaluationRunRepository
+	evaluationResultRepository repositories.EvaluationResultRepository
 }
 
 type Conductor interface {
@@ -36,28 +39,48 @@ func NewConductor(
 	queryResultRepository repositories.QueryResultRepository,
 	mutationResultRepository repositories.MutationResultRepository,
 	publisher rmqPublisher.Publisher,
+	options ...Option,
 ) *conductor {
-	return &conductor{
+	con := &conductor{
 		jobRepository:            jobRepository,
 		mutationRepository:       mutationRepository,
 		queryResultRepository:    queryResultRepository,
 		mutationResultRepository: mutationResultRepository,
 		publisher:                publisher,
 	}
+	for _, option := range options {
+		option(con)
+	}
+	return con
 }
 
 func (con *conductor) Orchestrate(m string) {
+	if err := con.OrchestrateWithError(m); err != nil {
+		logger.Errorf("Conductor: Error processing mq payload: %v", err)
+	}
+}
+
+// OrchestrateWithError lets the consumer requeue Evaluation storage failures.
+func (con *conductor) OrchestrateWithError(m string) error {
 	// Decode the incoming message
 	var payload Payload
 	if err := json.Unmarshal([]byte(m), &payload); err != nil {
 		logger.Errorf("Conductor: Error unmarshal mq payload: %v", err)
-		return
+		return nil
+	}
+	if payload.Data.StageID == EvaluationStageID {
+		err := con.receiveEvaluation(payload.Data)
+		if errors.Is(err, ErrInvalidEvaluation) {
+			logger.Warnf("Conductor: Ignoring invalid Evaluation callback: %v", err)
+			return nil
+		}
+		return err
 	}
 
 	// Update job data
 	job := con.updateJobData(payload.Data)
 	if job == nil || job.State != enum.JobStateOnGoing {
-		return
+		return nil
 	}
 
 	// Orchestrate next task
@@ -65,6 +88,7 @@ func (con *conductor) Orchestrate(m string) {
 	if err != nil {
 		logger.Errorf("Conductor: Error orchestrate job %s: %v", job.Id.Hex(), err)
 	}
+	return nil
 }
 
 // RunJob runs/retries a job
@@ -185,6 +209,10 @@ func (con *conductor) OrchestrateJob(job *models.Job) error {
 			return err
 		}
 		if mutation.State == enum.MutationStateCompleted {
+			if len(job.EvaluationPlugins) > 0 {
+				// a one-step job waits here after mutation; Run starts its evaluation
+				return con.resumeEvaluation(job, mutation)
+			}
 			job.State = enum.JobStateCompleted
 			if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
 				return err
@@ -269,9 +297,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 			return nil
 		}
 		con.jobRepository.AddErrorLog(data.JobID, fmt.Sprintf("error: message for stage %d but job is at stage %d", data.StageID, job.StageId))
-		if job.IsNotificationOn {
-			con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
-		}
+		con.notifyJobStatus(job, enum.JobStateFailed)
 		return nil
 	}
 
@@ -289,10 +315,8 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	}
 
 	if data.StageID == 3 {
-		con.updateMutationData(data)
-		// Send email notification considering notification settings
-		if job.IsNotificationOn {
-			con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateCompleted, job.StageId, job.Meta[job.StageId])
+		if state := con.updateMutationData(data); state != "" {
+			con.notifyJobStatus(job, state)
 		}
 		return nil
 	}
@@ -300,10 +324,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	if data.Status == string(enum.JobStateFailed) {
 		job.State = enum.JobStateFailed
 		logger.Infof("Conductor: updateJobData: Job %s failed %v", data.JobID, data.Error)
-		// Send email notification considering notification settings
-		if job.IsNotificationOn {
-			con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
-		}
+		con.notifyJobStatus(job, enum.JobStateFailed)
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 			return nil
@@ -317,10 +338,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 
 	if state == enum.JobStateFailed && (stage_id != 2 || (stage_id == 2 && job.LabResult.Total != 0)) {
 		logger.Infof("Conductor: updateJobData: Error: Invalid stage")
-		// Send email notification considering notification settings
-		if job.IsNotificationOn {
-			con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
-		}
+		con.notifyJobStatus(job, enum.JobStateFailed)
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 			return nil
@@ -341,10 +359,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 		return nil
 	}
 
-	// Send email notification considering notification settings
-	if job.IsNotificationOn && (job.RunType != "auto" || job.State == enum.JobStateFailed) {
-		con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, job.State, job.StageId, job.Meta[job.StageId])
-	}
+	con.notifyJobStatus(job, job.State)
 
 	return job
 }
@@ -436,16 +451,21 @@ func (con *conductor) updateQueryResultData(data Data) {
 	}
 }
 
-func (con *conductor) updateMutationData(data Data) {
+func (con *conductor) updateMutationData(data Data) enum.JobState {
 	job, err := con.jobRepository.FindById(data.JobID)
 	if err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to find job %s: %v", data.JobID, err)
-		return
+		return ""
 	}
 	mutation, err := con.mutationRepository.FindById(data.MutationID)
 	if err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to find mutation %s: %v", data.MutationID, err)
-		return
+		return ""
+	}
+
+	if mutation.State == enum.MutationStateCompleted || mutation.State == enum.MutationStateFailed {
+		logger.Warnf("Conductor: updateMutationData: JobID %s: ignoring result for mutation %s, it is already %s", data.JobID, data.MutationID, mutation.State)
+		return ""
 	}
 
 	if data.Status == string(enum.JobStateFailed) {
@@ -453,21 +473,30 @@ func (con *conductor) updateMutationData(data Data) {
 		logger.Infof("Conductor: updateMutationData: Mutation %s failed: %v", data.JobID, data.Error)
 		if err := con.mutationRepository.Update(data.MutationID, mutation); err != nil {
 			logger.Errorf("Conductor: updateMutationData: Failed to update mutation %s: %v", data.MutationID, err)
-			return
+			return ""
 		}
 		job.State = enum.JobStateFailed
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateMutationData: Failed to update job %s: %v", data.JobID, err)
-			return
+			return ""
 		}
 		con.jobRepository.AddErrorLog(data.JobID, "Mutation error: "+data.Error)
-		return
+		return enum.JobStateFailed
 	}
 
 	mutation.State = enum.MutationStateCompleted
 	mutation.CompleteAt = time.Now()
 
+	// An earlier delivery that stopped half way may have stored some results.
+	// The mutation is not completed yet, so nothing (bookmarks, wet-lab scores)
+	// can reference them; clear them so each sequence is stored exactly once.
+	if err := con.mutationResultRepository.DeleteByMutationId(data.MutationID); err != nil {
+		logger.Errorf("Conductor: updateMutationData: Failed to clear earlier results of mutation %s: %v", data.MutationID, err)
+		return ""
+	}
+
 	// save each mutated sequence and its predicted score
+	stored := make([]*models.MutationResult, 0, len(data.MutationResult))
 	for protein_sequence, assay_score := range data.MutationResult {
 		newMutationResult := &models.MutationResult{
 			MutationId:        mutation.Id,
@@ -480,24 +509,33 @@ func (con *conductor) updateMutationData(data Data) {
 		}
 		if err := con.mutationResultRepository.Create(newMutationResult); err != nil {
 			logger.Errorf("Conductor: updateMutationData: Failed to create new mutation result for mutation %s: %v", data.MutationID, err)
-			return
+			return ""
 		}
+		stored = append(stored, newMutationResult)
 	}
 
 	if err := con.mutationRepository.Update(data.MutationID, mutation); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update mutation %s: %v", data.MutationID, err)
-		return
+		return ""
 	}
 
-	job.State = enum.JobStateCompleted
-	if mutation.RunId == 1 {
+	job.RunTime["mutation"] = models.StageRunTime{StartTime: job.RunTime["mutation"].StartTime, EndTime: time.Now()}
+	state, evaluate := afterMutation(job, mutation)
+	job.State = state
+	if job.State == enum.JobStateCompleted && mutation.RunId == 1 {
 		job.CompleteAt = time.Now()
 	}
-	job.RunTime["mutation"] = models.StageRunTime{StartTime: job.RunTime["mutation"].StartTime, EndTime: time.Now()}
 	if err := con.jobRepository.Update(data.JobID, job); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
-		return
+		return ""
 	}
+	if evaluate {
+		if err := con.beginEvaluation(job, mutation, stored); err != nil {
+			logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
+			return ""
+		}
+	}
+	return job.State
 }
 
 func (con *conductor) sendJobToPipelineComponent(stageId int, tool string, request PipelineRequest) error {
@@ -559,6 +597,23 @@ func getNextStage(job models.Job, data Data) (state enum.JobState, stage_id int)
 	default:
 		return enum.JobStateFailed, data.StageID
 	}
+}
+
+func shouldNotify(job *models.Job, state enum.JobState) bool {
+	if !job.IsNotificationOn || state == enum.JobStateOnGoing {
+		return false
+	}
+	if job.RunType != "auto" {
+		return true
+	}
+	return state == enum.JobStateCompleted || state == enum.JobStateFailed
+}
+
+func (con *conductor) notifyJobStatus(job *models.Job, state enum.JobState) {
+	if !shouldNotify(job, state) || job.StageId >= len(job.Meta) {
+		return
+	}
+	con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, state, job.StageId, job.Meta[job.StageId])
 }
 
 func (con *conductor) sendJobStatusNotificationEmail(userID string, jobID string, jobName string, jobState enum.JobState, stageID int, stageName string) {

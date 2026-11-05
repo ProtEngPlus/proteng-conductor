@@ -11,6 +11,7 @@ import (
 type EvaluationState string
 
 const (
+	EvaluationPending   EvaluationState = "PENDING"
 	EvaluationOngoing   EvaluationState = "ONGOING"
 	EvaluationCompleted EvaluationState = "COMPLETED"
 	EvaluationFailed    EvaluationState = "FAILED"

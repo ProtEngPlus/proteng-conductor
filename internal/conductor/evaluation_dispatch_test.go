@@ -14,14 +14,35 @@ import (
 )
 
 type dispatchFixture struct {
-	con      *conductor
-	deps     *conductorDependencies
-	runs     *memoryEvaluationRuns
-	job      *models.Job
-	mutation *models.Mutation
-	data     Data
-	sent     []byte
-	events   []string
+	con       *conductor
+	deps      *conductorDependencies
+	runs      *memoryEvaluationRuns
+	job       *models.Job
+	mutation  *models.Mutation
+	data      Data
+	sent      []byte
+	events    []string
+	latest    []latestEvaluation
+	latestErr error
+}
+
+type latestEvaluation struct {
+	method string
+	runID  primitive.ObjectID
+	state  models.EvaluationState
+}
+
+func recordLatestEvaluations(deps *conductorDependencies, calls *[]latestEvaluation, err *error) {
+	record := func(method string) func(string, primitive.ObjectID, models.EvaluationState) error {
+		return func(_ string, runID primitive.ObjectID, state models.EvaluationState) error {
+			*calls = append(*calls, latestEvaluation{method, runID, state})
+			return *err
+		}
+	}
+	deps.jobRepository.EXPECT().SetLatestEvaluation(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(record("set")).AnyTimes()
+	deps.jobRepository.EXPECT().FinishLatestEvaluation(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(record("finish")).AnyTimes()
 }
 
 func newDispatchFixture(t *testing.T, runType string, runID int) *dispatchFixture {
@@ -54,6 +75,7 @@ func newDispatchFixture(t *testing.T, runType string, runID int) *dispatchFixtur
 		},
 	}
 	WithEvaluationRepositories(f.runs, &memoryEvaluationResults{items: map[primitive.ObjectID]*models.EvaluationResult{}})(con)
+	recordLatestEvaluations(deps, &f.latest, &f.latestErr)
 	return f
 }
 
@@ -108,6 +130,7 @@ func TestAfterMutation_autoJobStartsEvaluation(t *testing.T) {
 	require.Equal(t, f.mutation.Id, f.runs.run.MutationId)
 	require.Equal(t, []string{"mock"}, f.runs.run.Plugins)
 	require.Len(t, f.runs.run.MutationResultIds, 2)
+	require.Equal(t, []latestEvaluation{{"set", f.runs.run.Id, models.EvaluationOngoing}}, f.latest)
 
 	var request map[string]interface{}
 	require.NoError(t, json.Unmarshal(f.sent, &request))
@@ -127,6 +150,21 @@ func TestAfterMutation_oneStepJobWaits(t *testing.T) {
 	require.Equal(t, enum.JobStatePending, state)
 	require.Equal(t, enum.JobStatePending, f.job.State)
 	require.Nil(t, f.runs.run)
+	require.Equal(t, []latestEvaluation{{"set", primitive.NilObjectID, models.EvaluationPending}}, f.latest)
+}
+
+func TestAfterMutation_failedStateWriteDoesNotStopEvaluation(t *testing.T) {
+	f := newDispatchFixture(t, "auto", 1)
+	f.latestErr = errors.New("database unavailable")
+	f.expectMutationStored(1)
+	f.expectDispatch(nil)
+
+	state := f.con.updateMutationData(f.data)
+
+	require.Equal(t, enum.JobStateOnGoing, state)
+	require.Equal(t, []string{savedOnGoing, "publish"}, f.events)
+	require.Equal(t, models.EvaluationOngoing, f.runs.run.State)
+	require.Len(t, f.latest, 1)
 }
 
 func TestAfterMutation_extraMutationRunEvaluatesAtOnce(t *testing.T) {
@@ -153,6 +191,10 @@ func TestAfterMutation_dispatchFailureCompletesJob(t *testing.T) {
 	require.Equal(t, []string{savedOnGoing, "publish", savedCompleted}, f.events)
 	require.False(t, f.job.CompleteAt.IsZero())
 	require.Equal(t, models.EvaluationFailed, f.runs.run.State)
+	require.Equal(t, []latestEvaluation{
+		{"set", f.runs.run.Id, models.EvaluationOngoing},
+		{"finish", f.runs.run.Id, models.EvaluationFailed},
+	}, f.latest)
 }
 
 func TestOrchestrateJob_resumesWaitingEvaluation(t *testing.T) {
@@ -171,6 +213,7 @@ func TestOrchestrateJob_resumesWaitingEvaluation(t *testing.T) {
 	require.Equal(t, []string{savedOnGoing, "publish"}, f.events)
 	require.NotNil(t, f.runs.run)
 	require.Equal(t, []primitive.ObjectID{results[0].Id, results[1].Id}, f.runs.run.MutationResultIds)
+	require.Equal(t, []latestEvaluation{{"set", f.runs.run.Id, models.EvaluationOngoing}}, f.latest)
 }
 
 func TestOrchestrateJob_resumeDispatchFailureCompletesJob(t *testing.T) {
@@ -294,6 +337,7 @@ func TestRerunEvaluation(t *testing.T) {
 		require.Equal(tt, []string{"mock"}, run.Plugins)
 		require.Equal(tt, []string{"publish"}, f.events)
 		require.Equal(tt, enum.JobStateCompleted, f.job.State)
+		require.Equal(tt, []latestEvaluation{{"set", run.Id, models.EvaluationOngoing}}, f.latest)
 	})
 
 	t.Run("rejects a rerun while another run of the job is ongoing", func(tt *testing.T) {
@@ -304,6 +348,7 @@ func TestRerunEvaluation(t *testing.T) {
 
 		require.ErrorIs(tt, err, ErrEvaluationRunning)
 		require.Empty(tt, f.events)
+		require.Empty(tt, f.latest)
 	})
 
 	t.Run("rejects a mutation run without results", func(tt *testing.T) {

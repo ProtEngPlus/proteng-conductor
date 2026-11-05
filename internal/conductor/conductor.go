@@ -549,6 +549,9 @@ func (con *conductor) updateMutationData(data Data) enum.JobState {
 		logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
 		return ""
 	}
+	if state == enum.JobStatePending {
+		con.markEvaluationPending(data.JobID)
+	}
 	if evaluate {
 		if err := con.beginEvaluation(job, mutation, stored); err != nil {
 			logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)

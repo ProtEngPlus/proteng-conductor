@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/protengplus/proteng-conductor/database"
@@ -25,6 +26,8 @@ type JobRepository interface {
 	Delete(id string) error
 	GetAll(query map[string]interface{}) ([]*models.Job, error)
 	AddErrorLog(id string, log string) error
+	SetLatestEvaluation(id string, runId primitive.ObjectID, state models.EvaluationState) error
+	FinishLatestEvaluation(id string, runId primitive.ObjectID, state models.EvaluationState) error
 }
 
 type jobRepository struct {
@@ -177,6 +180,8 @@ func (jr *jobRepository) Create(job *models.Job) error {
 	job.UpdatedAt = time.Now()
 	job.RunTime = make(map[string]models.StageRunTime)
 	job.ErrorLogs = []models.ErrLog{}
+	job.EvaluationState = ""
+	job.EvaluationRunId = nil
 
 	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
 	defer cancel()
@@ -273,4 +278,49 @@ func (jr *jobRepository) AddErrorLog(id string, log string) error {
 	}
 
 	return nil
+}
+
+// SetLatestEvaluation marks the job as waiting for an evaluation (PENDING, no
+// run yet) or as running the given run (ONGOING).
+func (jr *jobRepository) SetLatestEvaluation(id string, runId primitive.ObjectID, state models.EvaluationState) error {
+	set := bson.M{"evaluation_state": state, "updated_at": time.Now()}
+	update := bson.M{"$set": set}
+	switch {
+	case state == models.EvaluationPending && runId.IsZero():
+		update["$unset"] = bson.M{"evaluation_run_id": ""}
+	case state == models.EvaluationOngoing && !runId.IsZero():
+		set["evaluation_run_id"] = runId
+	default:
+		return fmt.Errorf("latest evaluation must be PENDING without a run or ONGOING with a run")
+	}
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	_, err = jr.collection.UpdateOne(ctx, bson.M{"_id": objectId}, update)
+	return err
+}
+
+// FinishLatestEvaluation stores the final state of a run only while it is still
+// the job's latest run, so a run that ends late never overwrites a newer one.
+func (jr *jobRepository) FinishLatestEvaluation(id string, runId primitive.ObjectID, state models.EvaluationState) error {
+	if state != models.EvaluationCompleted && state != models.EvaluationFailed {
+		return fmt.Errorf("evaluation finish requires a terminal state")
+	}
+	if runId.IsZero() {
+		return fmt.Errorf("evaluation finish requires a run")
+	}
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	_, err = jr.collection.UpdateOne(ctx,
+		bson.M{"_id": objectId, "evaluation_run_id": runId},
+		bson.M{"$set": bson.M{"evaluation_state": state, "updated_at": time.Now()}},
+	)
+	return err
 }

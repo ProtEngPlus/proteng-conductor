@@ -188,7 +188,7 @@ func runAPIFlowSmoke(mongoURI, amqpURL string) error {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	routes.JobRoute(router, jobs, mutations, mutationResults, repositories.NewConfigurationRepository(), queryResults,
-		repositories.NewExperimentalResultRepository(), runs, results, receiver)
+		repositories.NewExperimentalResultRepository(), repositories.NewAssayTypeRepository(), runs, results, receiver)
 	routes.EvaluationRoute(router, jobs, mutations, mutationResults, runs, results, receiver)
 	server := httptest.NewServer(router)
 	defer server.Close()

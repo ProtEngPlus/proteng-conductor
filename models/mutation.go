@@ -67,6 +67,8 @@ type ExperimentalResult struct {
 	MutationResultId primitive.ObjectID `bson:"mutation_result_id" json:"mutation_result_id"`
 	MutationId       primitive.ObjectID `bson:"mutation_id" json:"mutation_id"`
 	JobId            primitive.ObjectID `bson:"job_id" json:"job_id"`
+	AssayTypeId      primitive.ObjectID `bson:"assay_type_id" json:"assay_type_id"`
+	ProteinSequence  string             `bson:"protein_sequence" json:"protein_sequence"`
 	UserId           string             `bson:"user_id" json:"user_id"`
 	ActualAssayScore float32            `bson:"actual_assay_score" json:"actual_assay_score"`
 	Note             string             `bson:"note" json:"note"`

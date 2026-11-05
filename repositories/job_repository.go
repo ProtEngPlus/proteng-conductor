@@ -28,6 +28,7 @@ type JobRepository interface {
 	AddErrorLog(id string, log string) error
 	SetLatestEvaluation(id string, runId primitive.ObjectID, state models.EvaluationState) error
 	FinishLatestEvaluation(id string, runId primitive.ObjectID, state models.EvaluationState) error
+	CountByAssayType(assayTypeId string) (int64, error)
 }
 
 type jobRepository struct {
@@ -206,6 +207,8 @@ func (jr *jobRepository) Update(id string, job *models.Job) error {
 			"name":               job.Name,
 			"state":              string(job.State),
 			"stage_id":           job.StageId,
+			"assay_type_id":      job.AssayTypeId,
+			"library_result_ids": job.LibraryResultIds,
 			"lab_result":         job.LabResult,
 			"options":            job.Options,
 			"artifact":           job.Artifacts,
@@ -323,4 +326,16 @@ func (jr *jobRepository) FinishLatestEvaluation(id string, runId primitive.Objec
 		bson.M{"$set": bson.M{"evaluation_state": state, "updated_at": time.Now()}},
 	)
 	return err
+}
+
+func (jr *jobRepository) CountByAssayType(assayTypeId string) (int64, error) {
+	objectId, err := primitive.ObjectIDFromHex(assayTypeId)
+	if err != nil {
+		return 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	return jr.collection.CountDocuments(ctx, bson.M{"assay_type_id": objectId})
 }

@@ -20,6 +20,9 @@ type ExperimentalResultRepository interface {
 	DeleteByJobId(jobId string) error
 	DeleteByMutationId(mutationId string) error
 	GetAll(query map[string]interface{}) ([]*models.ExperimentalResult, error)
+	GetByIds(ids []string) ([]*models.ExperimentalResult, error)
+	UpdateAssayTypeByJobId(jobId string, assayTypeId primitive.ObjectID) error
+	CountByAssayType(assayTypeId string) (int64, error)
 }
 
 type experimentalResultRepository struct {
@@ -34,7 +37,7 @@ func (er *experimentalResultRepository) GetAll(query map[string]interface{}) ([]
 	experimentalResults := []*models.ExperimentalResult{}
 	filter := bson.M{}
 
-	for _, key := range []string{"job_id", "mutation_id"} {
+	for _, key := range []string{"job_id", "mutation_id", "assay_type_id"} {
 		if value, ok := query[key]; ok {
 			objectId, err := primitive.ObjectIDFromHex(value.(string))
 			if err != nil {
@@ -96,6 +99,8 @@ func (er *experimentalResultRepository) Upsert(mutationResultId string, experime
 		"$set": bson.M{
 			"mutation_id":        experimentalResult.MutationId,
 			"job_id":             experimentalResult.JobId,
+			"assay_type_id":      experimentalResult.AssayTypeId,
+			"protein_sequence":   experimentalResult.ProteinSequence,
 			"user_id":            experimentalResult.UserId,
 			"actual_assay_score": experimentalResult.ActualAssayScore,
 			"note":               experimentalResult.Note,
@@ -134,4 +139,56 @@ func (er *experimentalResultRepository) deleteManyByObjectId(key string, id stri
 
 	_, err = er.collection.DeleteMany(ctx, bson.M{key: objectId})
 	return err
+}
+
+func (er *experimentalResultRepository) GetByIds(ids []string) ([]*models.ExperimentalResult, error) {
+	objectIds := make([]primitive.ObjectID, 0, len(ids))
+	for _, id := range ids {
+		objectId, err := primitive.ObjectIDFromHex(id)
+		if err != nil {
+			return nil, err
+		}
+		objectIds = append(objectIds, objectId)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	cursor, err := er.collection.Find(ctx, bson.M{"_id": bson.M{"$in": objectIds}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	experimentalResults := []*models.ExperimentalResult{}
+	if err := cursor.All(ctx, &experimentalResults); err != nil {
+		return nil, err
+	}
+
+	return experimentalResults, nil
+}
+
+func (er *experimentalResultRepository) UpdateAssayTypeByJobId(jobId string, assayTypeId primitive.ObjectID) error {
+	objectId, err := primitive.ObjectIDFromHex(jobId)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	_, err = er.collection.UpdateMany(ctx, bson.M{"job_id": objectId}, bson.M{"$set": bson.M{"assay_type_id": assayTypeId}})
+	return err
+}
+
+func (er *experimentalResultRepository) CountByAssayType(assayTypeId string) (int64, error) {
+	objectId, err := primitive.ObjectIDFromHex(assayTypeId)
+	if err != nil {
+		return 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	return er.collection.CountDocuments(ctx, bson.M{"assay_type_id": objectId})
 }

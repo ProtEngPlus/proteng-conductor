@@ -298,9 +298,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 			return nil
 		}
 		con.jobRepository.AddErrorLog(data.JobID, fmt.Sprintf("error: message for stage %d but job is at stage %d", data.StageID, job.StageId))
-		if job.IsNotificationOn {
-			con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
-		}
+		con.notifyJobStatus(job, enum.JobStateFailed)
 		return nil
 	}
 
@@ -318,11 +316,8 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	}
 
 	if data.StageID == 3 {
-		state := con.updateMutationData(data)
-		// Notify only when the job reached a state the user acts on. A running
-		// evaluation notifies when it finishes; an ignored redelivery never does.
-		if job.IsNotificationOn && (state == enum.JobStateCompleted || state == enum.JobStateFailed || state == enum.JobStatePending) {
-			con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, state, job.StageId, job.Meta[job.StageId])
+		if state := con.updateMutationData(data); state != "" {
+			con.notifyJobStatus(job, state)
 		}
 		return nil
 	}
@@ -330,10 +325,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 	if data.Status == string(enum.JobStateFailed) {
 		job.State = enum.JobStateFailed
 		logger.Infof("Conductor: updateJobData: Job %s failed %v", data.JobID, data.Error)
-		// Send email notification considering notification settings
-		if job.IsNotificationOn {
-			con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
-		}
+		con.notifyJobStatus(job, enum.JobStateFailed)
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 			return nil
@@ -347,10 +339,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 
 	if state == enum.JobStateFailed && (stage_id != 2 || (stage_id == 2 && job.LabResult.Total != 0)) {
 		logger.Infof("Conductor: updateJobData: Error: Invalid stage")
-		// Send email notification considering notification settings
-		if job.IsNotificationOn {
-			con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, enum.JobStateFailed, job.StageId, job.Meta[job.StageId])
-		}
+		con.notifyJobStatus(job, enum.JobStateFailed)
 		if err := con.jobRepository.Update(data.JobID, job); err != nil {
 			logger.Errorf("Conductor: updateJobData: Failed to update job %s: %v", data.JobID, err)
 			return nil
@@ -371,10 +360,7 @@ func (con *conductor) updateJobData(data Data) *models.Job {
 		return nil
 	}
 
-	// Send email notification considering notification settings
-	if job.IsNotificationOn && (job.RunType != "auto" || job.State == enum.JobStateFailed) {
-		con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, job.State, job.StageId, job.Meta[job.StageId])
-	}
+	con.notifyJobStatus(job, job.State)
 
 	return job
 }
@@ -466,8 +452,6 @@ func (con *conductor) updateQueryResultData(data Data) {
 	}
 }
 
-// updateMutationData stores a mutation run's results and returns the job state
-// it set, or "" when nothing changed.
 func (con *conductor) updateMutationData(data Data) enum.JobState {
 	job, err := con.jobRepository.FindById(data.JobID)
 	if err != nil {
@@ -480,9 +464,6 @@ func (con *conductor) updateMutationData(data Data) enum.JobState {
 		return ""
 	}
 
-	// A redelivered message for a mutation that already finished must not store
-	// its results or change the job a second time. Retries set the mutation back
-	// to ongoing before dispatch, so a real result never arrives for a finished one.
 	if mutation.State == enum.MutationStateCompleted || mutation.State == enum.MutationStateFailed {
 		logger.Warnf("Conductor: updateMutationData: JobID %s: ignoring result for mutation %s, it is already %s", data.JobID, data.MutationID, mutation.State)
 		return ""
@@ -620,6 +601,23 @@ func getNextStage(job models.Job, data Data) (state enum.JobState, stage_id int)
 	default:
 		return enum.JobStateFailed, data.StageID
 	}
+}
+
+func shouldNotify(job *models.Job, state enum.JobState) bool {
+	if !job.IsNotificationOn || state == enum.JobStateOnGoing {
+		return false
+	}
+	if job.RunType != "auto" {
+		return true
+	}
+	return state == enum.JobStateCompleted || state == enum.JobStateFailed
+}
+
+func (con *conductor) notifyJobStatus(job *models.Job, state enum.JobState) {
+	if !shouldNotify(job, state) || job.StageId >= len(job.Meta) {
+		return
+	}
+	con.sendJobStatusNotificationEmail(job.UserId, job.Id.Hex(), job.Name, state, job.StageId, job.Meta[job.StageId])
 }
 
 func (con *conductor) sendJobStatusNotificationEmail(userID string, jobID string, jobName string, jobState enum.JobState, stageID int, stageName string) {

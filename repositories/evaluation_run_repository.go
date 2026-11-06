@@ -32,8 +32,21 @@ type evaluationRunRepository struct {
 	collection *mongo.Collection
 }
 
-func NewEvaluationRunRepository() EvaluationRunRepository {
-	return &evaluationRunRepository{collection: database.GetCollection("evaluation_runs")}
+func NewEvaluationRunRepository() (EvaluationRunRepository, error) {
+	r := &evaluationRunRepository{collection: database.GetCollection("evaluation_runs")}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	_, err := r.collection.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "job_id", Value: 1},
+			{Key: "created_at", Value: -1},
+		},
+		Options: options.Index().SetName("evaluation_run_job"),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 func (r *evaluationRunRepository) Create(run *models.EvaluationRun) error {

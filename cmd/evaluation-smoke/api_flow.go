@@ -150,7 +150,10 @@ func runAPIFlowSmoke(mongoURI, amqpURL string) error {
 	if err := channel.ExchangeDeclare("logs_topic", "topic", false, false, false, false, nil); err != nil {
 		return err
 	}
-	runs := repositories.NewEvaluationRunRepository()
+	runs, err := repositories.NewEvaluationRunRepository()
+	if err != nil {
+		return err
+	}
 	results, err := repositories.NewEvaluationResultRepository()
 	if err != nil {
 		return err

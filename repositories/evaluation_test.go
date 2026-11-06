@@ -42,9 +42,34 @@ func TestEvaluationRepositories(t *testing.T) {
 		_, err := NewEvaluationResultRepository()
 		require.Error(mt, err)
 	})
+	mt.Run("run job index", func(mt *mtest.T) {
+		useEvaluationMockDatabase(mt)
+		mt.AddMockResponses(mtest.CreateSuccessResponse())
+		_, err := NewEvaluationRunRepository()
+		require.NoError(mt, err)
+		event := mt.GetStartedEvent()
+		require.Equal(mt, "createIndexes", event.CommandName)
+		index := event.Command.Lookup("indexes").Array().Index(0).Value().Document()
+		keys, err := index.Lookup("key").Document().Elements()
+		require.NoError(mt, err)
+		require.Len(mt, keys, 2)
+		require.Equal(mt, "job_id", keys[0].Key())
+		require.Equal(mt, int32(1), keys[0].Value().Int32())
+		require.Equal(mt, "created_at", keys[1].Key())
+		require.Equal(mt, int32(-1), keys[1].Value().Int32())
+	})
+	mt.Run("run index failure stops initialization", func(mt *mtest.T) {
+		useEvaluationMockDatabase(mt)
+		mt.AddMockResponses(mtest.CreateCommandErrorResponse(mtest.CommandError{Code: 85, Message: "conflicting index"}))
+		_, err := NewEvaluationRunRepository()
+		require.Error(mt, err)
+	})
 	mt.Run("create and find registered run", func(mt *mtest.T) {
 		useEvaluationMockDatabase(mt)
-		r := NewEvaluationRunRepository()
+		mt.AddMockResponses(mtest.CreateSuccessResponse())
+		r, err := NewEvaluationRunRepository()
+		require.NoError(mt, err)
+		mt.GetStartedEvent() // createIndexes
 		run := &models.EvaluationRun{
 			JobId: primitive.NewObjectID(), MutationId: primitive.NewObjectID(),
 			MutationResultIds: []primitive.ObjectID{primitive.NewObjectID()}, Plugins: []string{"mock"},

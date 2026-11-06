@@ -52,7 +52,10 @@ func main() {
 	assayTypeRepository := repositories.NewAssayTypeRepository()
 
 	// conductor
-	evaluationRunRepository := repositories.NewEvaluationRunRepository()
+	evaluationRunRepository, err := repositories.NewEvaluationRunRepository()
+	if err != nil {
+		logger.Fatalf("Failed to initialize Evaluation run repository: %v", err)
+	}
 	evaluationResultRepository, err := repositories.NewEvaluationResultRepository()
 	if err != nil {
 		logger.Fatalf("Failed to initialize Evaluation result repository: %v", err)

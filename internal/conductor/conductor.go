@@ -137,6 +137,9 @@ func (con *conductor) RunMutation(mutation *models.Mutation) error {
 		logger.Errorf("Conductor: RunMutation: Failed to update job %s: %v", job.Id.Hex(), err)
 		return err
 	}
+	if err := con.jobRepository.ClearLatestEvaluation(job.Id.Hex()); err != nil {
+		logger.Errorf("Conductor: RunMutation: Failed to clear the latest evaluation of job %s: %v", job.Id.Hex(), err)
+	}
 	reqBodyMap := PipelineRequest{
 		JobId:      mutation.JobId.Hex(),
 		MutationId: mutation.Id.Hex(),

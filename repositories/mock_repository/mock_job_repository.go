@@ -49,6 +49,20 @@ func (mr *MockJobRepositoryMockRecorder) AddErrorLog(id, log interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddErrorLog", reflect.TypeOf((*MockJobRepository)(nil).AddErrorLog), id, log)
 }
 
+// ClearLatestEvaluation mocks base method.
+func (m *MockJobRepository) ClearLatestEvaluation(id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearLatestEvaluation", id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ClearLatestEvaluation indicates an expected call of ClearLatestEvaluation.
+func (mr *MockJobRepositoryMockRecorder) ClearLatestEvaluation(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearLatestEvaluation", reflect.TypeOf((*MockJobRepository)(nil).ClearLatestEvaluation), id)
+}
+
 // CountByAssayType mocks base method.
 func (m *MockJobRepository) CountByAssayType(assayTypeId string) (int64, error) {
 	m.ctrl.T.Helper()

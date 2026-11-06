@@ -360,3 +360,30 @@ func TestRerunEvaluation(t *testing.T) {
 		require.ErrorIs(tt, err, ErrNoEvaluationCandidates)
 	})
 }
+
+func TestRunMutation_clearsTheLatestEvaluation(t *testing.T) {
+	for _, clearErr := range []error{nil, errors.New("database unavailable")} {
+		f := newDispatchFixture(t, "auto", 2)
+		previousRun := primitive.NewObjectID()
+		f.job.State = enum.JobStateCompleted
+		f.job.EvaluationState = models.EvaluationCompleted
+		f.job.EvaluationRunId = &previousRun
+		f.mutation.State = enum.MutationStatePending
+		f.deps.jobRepository.EXPECT().FindById(f.job.Id.Hex()).Return(f.job, nil)
+		f.deps.mutationRepository.EXPECT().Update(f.mutation.Id.Hex(), gomock.Any()).Return(nil)
+		f.expectJobSaved()
+		f.deps.jobRepository.EXPECT().ClearLatestEvaluation(f.job.Id.Hex()).
+			DoAndReturn(func(string) error {
+				f.events = append(f.events, "clear")
+				return clearErr
+			})
+		f.deps.publisher.EXPECT().PublishWithTopic(gomock.Any(), "mutation.", gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ string, _ []byte) error {
+				f.events = append(f.events, "publish")
+				return nil
+			})
+
+		require.NoError(t, f.con.RunMutation(f.mutation))
+		require.Equal(t, []string{savedOnGoing, "clear", "publish"}, f.events)
+	}
+}

@@ -28,6 +28,7 @@ type JobRepository interface {
 	AddErrorLog(id string, log string) error
 	SetLatestEvaluation(id string, runId primitive.ObjectID, state models.EvaluationState) error
 	FinishLatestEvaluation(id string, runId primitive.ObjectID, state models.EvaluationState) error
+	ClearLatestEvaluation(id string) error
 	CountByAssayType(assayTypeId string) (int64, error)
 }
 
@@ -324,6 +325,23 @@ func (jr *jobRepository) FinishLatestEvaluation(id string, runId primitive.Objec
 	_, err = jr.collection.UpdateOne(ctx,
 		bson.M{"_id": objectId, "evaluation_run_id": runId},
 		bson.M{"$set": bson.M{"evaluation_state": state, "updated_at": time.Now()}},
+	)
+	return err
+}
+
+func (jr *jobRepository) ClearLatestEvaluation(id string) error {
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	_, err = jr.collection.UpdateOne(ctx,
+		bson.M{"_id": objectId},
+		bson.M{
+			"$unset": bson.M{"evaluation_state": "", "evaluation_run_id": ""},
+			"$set":   bson.M{"updated_at": time.Now()},
+		},
 	)
 	return err
 }

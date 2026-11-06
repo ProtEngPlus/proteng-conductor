@@ -192,8 +192,8 @@ func TestEvaluationController(t *testing.T) {
 	t.Run("evaluation groups results by mutant and skips deleted mutants", func(tt *testing.T) {
 		d := setup(tt)
 		d.jr.EXPECT().FindById(job.Id.Hex()).Return(job, nil)
-		d.mrr.EXPECT().FindById(kept.Hex()).Return(&models.MutationResult{Id: kept, JobId: job.Id, ProteinSequence: "AAAC"}, nil)
-		d.mrr.EXPECT().FindById(deleted.Hex()).Return(nil, mongo.ErrNoDocuments)
+		d.mrr.EXPECT().FindByIds([]primitive.ObjectID{kept, deleted}).
+			Return([]*models.MutationResult{{Id: kept, JobId: job.Id, ProteinSequence: "AAAC"}}, nil)
 
 		w := send(d.router, http.MethodGet, "/evaluations/"+run.Id.Hex()+"?user_id=owner", "")
 		assert.Equal(tt, http.StatusOK, w.Code)

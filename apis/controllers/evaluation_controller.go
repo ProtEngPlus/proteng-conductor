@@ -7,7 +7,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 
 	"github.com/protengplus/proteng-conductor/config"
 	"github.com/protengplus/proteng-conductor/internal/conductor"
@@ -104,15 +103,21 @@ func (ec *EvaluationController) GetEvaluation(c *gin.Context) {
 		byMutant[result.MutationResultId][result.Plugin] = evaluationPluginResult{State: result.State, Values: result.Values, Error: result.Error}
 	}
 
+	mutationResults, err := ec.mutationResultRepository.FindByIds(run.MutationResultIds)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+	mutationResultsById := make(map[primitive.ObjectID]*models.MutationResult, len(mutationResults))
+	for _, mutationResult := range mutationResults {
+		mutationResultsById[mutationResult.Id] = mutationResult
+	}
+
 	detail := evaluationRunDetail{Run: run, Mutants: make([]evaluationMutant, 0, len(run.MutationResultIds))}
 	for _, id := range run.MutationResultIds {
-		mutationResult, err := ec.mutationResultRepository.FindById(id.Hex())
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		mutationResult, found := mutationResultsById[id]
+		if !found {
 			continue
-		}
-		if err != nil {
-			apiutil.ApiResponseInternalServerError(c, err)
-			return
 		}
 		pluginResults := byMutant[id]
 		if pluginResults == nil {

@@ -193,13 +193,20 @@ func (con *conductor) finishRun(run *models.EvaluationRun, pluginError string) e
 	if len(errs) > 0 {
 		state, message = models.EvaluationFailed, strings.Join(errs, "; ")
 	}
-	return con.evaluationRunRepository.Finish(run.Id, state, message)
+	if err := con.evaluationRunRepository.Finish(run.Id, state, message); err != nil {
+		return err
+	}
+	con.recordJobEvaluation(run.JobId.Hex(), run.Id, state)
+	return nil
 }
 
 // completeEvaluatedJob completes a job that waits at stage 3 for its evaluation.
 // Jobs in any other state are left alone, so a repeated call changes nothing.
 // A failed update returns an error so the message is retried.
 func (con *conductor) completeEvaluatedJob(run *models.EvaluationRun) error {
+	if run.Rerun {
+		return nil
+	}
 	job, err := con.jobRepository.FindById(run.JobId.Hex())
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil // the job was deleted; nothing is waiting for this run

@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func JobRoute(router *gin.Engine, jr repositories.JobRepository, mr repositories.MutationRepository, mrr repositories.MutationResultRepository, cr repositories.ConfigurationRepository, qr repositories.QueryResultRepository, exr repositories.ExperimentalResultRepository, atr repositories.AssayTypeRepository, con conductor.Conductor) {
-	jc := controllers.NewJobController(jr, mr, mrr, cr, qr, exr, atr, con)
+func JobRoute(router *gin.Engine, jr repositories.JobRepository, mr repositories.MutationRepository, mrr repositories.MutationResultRepository, cr repositories.ConfigurationRepository, qr repositories.QueryResultRepository, exr repositories.ExperimentalResultRepository, atr repositories.AssayTypeRepository, evr repositories.EvaluationRunRepository, eres repositories.EvaluationResultRepository, con conductor.Conductor) {
+	jc := controllers.NewJobController(jr, mr, mrr, cr, qr, exr, atr, evr, eres, con)
 
 	router.GET("/jobs", jc.GetAllJobs)
 	router.GET("/jobs/dashboard", jc.GetJobDashboard)

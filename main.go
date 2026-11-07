@@ -52,7 +52,10 @@ func main() {
 	assayTypeRepository := repositories.NewAssayTypeRepository()
 
 	// conductor
-	evaluationRunRepository := repositories.NewEvaluationRunRepository()
+	evaluationRunRepository, err := repositories.NewEvaluationRunRepository()
+	if err != nil {
+		logger.Fatalf("Failed to initialize Evaluation run repository: %v", err)
+	}
 	evaluationResultRepository, err := repositories.NewEvaluationResultRepository()
 	if err != nil {
 		logger.Fatalf("Failed to initialize Evaluation result repository: %v", err)
@@ -95,10 +98,11 @@ func main() {
 	})
 
 	// routes
-	routes.JobRoute(router, jobRepository, mutationRepository, mutationResultRepository, configurationRepository, queryResultRepository, experimentalResultRepository, assayTypeRepository, conductor)
+	routes.JobRoute(router, jobRepository, mutationRepository, mutationResultRepository, configurationRepository, queryResultRepository, experimentalResultRepository, assayTypeRepository, evaluationRunRepository, evaluationResultRepository, conductor)
 	routes.MutationRoute(router, jobRepository, mutationRepository, mutationResultRepository, experimentalResultRepository, conductor)
 	routes.ExperimentalResultRoute(router, mutationResultRepository, experimentalResultRepository, jobRepository, assayTypeRepository)
 	routes.AssayTypeRoute(router, assayTypeRepository, experimentalResultRepository, mutationResultRepository, jobRepository)
+	routes.EvaluationRoute(router, jobRepository, mutationRepository, mutationResultRepository, evaluationRunRepository, evaluationResultRepository, conductor)
 	routes.ArtifactRoute(router, storageService)
 	routes.UniProtRoute(router, storageService)
 	routes.QueryResultRoute(router, jobRepository, queryResultRepository, conductor)

@@ -42,9 +42,34 @@ func TestEvaluationRepositories(t *testing.T) {
 		_, err := NewEvaluationResultRepository()
 		require.Error(mt, err)
 	})
+	mt.Run("run job index", func(mt *mtest.T) {
+		useEvaluationMockDatabase(mt)
+		mt.AddMockResponses(mtest.CreateSuccessResponse())
+		_, err := NewEvaluationRunRepository()
+		require.NoError(mt, err)
+		event := mt.GetStartedEvent()
+		require.Equal(mt, "createIndexes", event.CommandName)
+		index := event.Command.Lookup("indexes").Array().Index(0).Value().Document()
+		keys, err := index.Lookup("key").Document().Elements()
+		require.NoError(mt, err)
+		require.Len(mt, keys, 2)
+		require.Equal(mt, "job_id", keys[0].Key())
+		require.Equal(mt, int32(1), keys[0].Value().Int32())
+		require.Equal(mt, "created_at", keys[1].Key())
+		require.Equal(mt, int32(-1), keys[1].Value().Int32())
+	})
+	mt.Run("run index failure stops initialization", func(mt *mtest.T) {
+		useEvaluationMockDatabase(mt)
+		mt.AddMockResponses(mtest.CreateCommandErrorResponse(mtest.CommandError{Code: 85, Message: "conflicting index"}))
+		_, err := NewEvaluationRunRepository()
+		require.Error(mt, err)
+	})
 	mt.Run("create and find registered run", func(mt *mtest.T) {
 		useEvaluationMockDatabase(mt)
-		r := NewEvaluationRunRepository()
+		mt.AddMockResponses(mtest.CreateSuccessResponse())
+		r, err := NewEvaluationRunRepository()
+		require.NoError(mt, err)
+		mt.GetStartedEvent() // createIndexes
 		run := &models.EvaluationRun{
 			JobId: primitive.NewObjectID(), MutationId: primitive.NewObjectID(),
 			MutationResultIds: []primitive.ObjectID{primitive.NewObjectID()}, Plugins: []string{"mock"},
@@ -140,5 +165,76 @@ func TestEvaluationRepositories(t *testing.T) {
 		require.Error(mt, r.UpsertAll([]*models.EvaluationResult{result}))
 		require.Error(mt, r.UpsertAll(nil))
 		require.Error(mt, r.UpsertAll([]*models.EvaluationResult{nil}))
+	})
+	mt.Run("find runs of a job newest first", func(mt *mtest.T) {
+		r := &evaluationRunRepository{collection: mt.Coll}
+		jobID := primitive.NewObjectID()
+		run := &models.EvaluationRun{Id: primitive.NewObjectID(), JobId: jobID, State: models.EvaluationCompleted}
+		encoded, err := bson.Marshal(run)
+		require.NoError(mt, err)
+		var doc bson.D
+		require.NoError(mt, bson.Unmarshal(encoded, &doc))
+		mt.AddMockResponses(mtest.CreateCursorResponse(0, mt.DB.Name()+".evaluation_runs", mtest.FirstBatch, doc))
+		runs, err := r.FindByJob(jobID.Hex())
+		require.NoError(mt, err)
+		require.Len(mt, runs, 1)
+		require.Equal(mt, run.Id, runs[0].Id)
+		command := mt.GetStartedEvent().Command
+		require.Equal(mt, jobID, command.Lookup("filter").Document().Lookup("job_id").ObjectID())
+		require.Equal(mt, int32(-1), command.Lookup("sort").Document().Lookup("created_at").Int32())
+		mt.AddMockResponses(mtest.CreateCursorResponse(0, mt.DB.Name()+".evaluation_runs", mtest.FirstBatch))
+		runs, err = r.FindByJob(jobID.Hex())
+		require.NoError(mt, err)
+		require.NotNil(mt, runs)
+		require.Empty(mt, runs)
+		_, err = r.FindByJob("bad")
+		require.Error(mt, err)
+	})
+	mt.Run("find results of a run", func(mt *mtest.T) {
+		r := &evaluationResultRepository{collection: mt.Coll}
+		runID := primitive.NewObjectID()
+		result := &models.EvaluationResult{
+			Id: primitive.NewObjectID(), EvaluationRunId: runID, MutationResultId: primitive.NewObjectID(), Plugin: "mock",
+			State: models.EvaluationCompleted, Values: map[string]interface{}{"mock_score": 0.5},
+		}
+		encoded, err := bson.Marshal(result)
+		require.NoError(mt, err)
+		var doc bson.D
+		require.NoError(mt, bson.Unmarshal(encoded, &doc))
+		mt.AddMockResponses(mtest.CreateCursorResponse(0, mt.DB.Name()+".evaluation_results", mtest.FirstBatch, doc))
+		results, err := r.FindByRun(runID.Hex())
+		require.NoError(mt, err)
+		require.Len(mt, results, 1)
+		require.Equal(mt, result.MutationResultId, results[0].MutationResultId)
+		require.Equal(mt, 0.5, results[0].Values["mock_score"])
+		require.Equal(mt, runID, mt.GetStartedEvent().Command.Lookup("filter").Document().Lookup("evaluation_run_id").ObjectID())
+		mt.AddMockResponses(mtest.CreateCursorResponse(0, mt.DB.Name()+".evaluation_results", mtest.FirstBatch))
+		results, err = r.FindByRun(runID.Hex())
+		require.NoError(mt, err)
+		require.NotNil(mt, results)
+		require.Empty(mt, results)
+		_, err = r.FindByRun("bad")
+		require.Error(mt, err)
+	})
+	mt.Run("delete runs of a job", func(mt *mtest.T) {
+		r := &evaluationRunRepository{collection: mt.Coll}
+		jobID := primitive.NewObjectID()
+		mt.AddMockResponses(mtest.CreateSuccessResponse(bson.E{Key: "n", Value: 2}))
+		require.NoError(mt, r.DeleteByJobId(jobID.Hex()))
+		deletes := mt.GetStartedEvent().Command.Lookup("deletes").Array().Index(0).Value().Document()
+		require.Equal(mt, jobID, deletes.Lookup("q").Document().Lookup("job_id").ObjectID())
+		require.Error(mt, r.DeleteByJobId("bad"))
+	})
+	mt.Run("delete results of runs", func(mt *mtest.T) {
+		r := &evaluationResultRepository{collection: mt.Coll}
+		runIDs := []primitive.ObjectID{primitive.NewObjectID(), primitive.NewObjectID()}
+		mt.AddMockResponses(mtest.CreateSuccessResponse(bson.E{Key: "n", Value: 4}))
+		require.NoError(mt, r.DeleteByRunIds(runIDs))
+		deletes := mt.GetStartedEvent().Command.Lookup("deletes").Array().Index(0).Value().Document()
+		in := deletes.Lookup("q").Document().Lookup("evaluation_run_id").Document().Lookup("$in").Array()
+		require.Equal(mt, runIDs[0], in.Index(0).Value().ObjectID())
+		require.Equal(mt, runIDs[1], in.Index(1).Value().ObjectID())
+		require.NoError(mt, r.DeleteByRunIds(nil))
+		require.Nil(mt, mt.GetStartedEvent())
 	})
 }

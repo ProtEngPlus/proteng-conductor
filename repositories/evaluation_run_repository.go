@@ -11,11 +11,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type EvaluationRunRepository interface {
 	Create(run *models.EvaluationRun) error
 	FindById(id string) (*models.EvaluationRun, error)
+	FindByJob(jobId string) ([]*models.EvaluationRun, error)
+	DeleteByJobId(jobId string) error
 	Finish(id primitive.ObjectID, state models.EvaluationState, message string) error
 	FindStale(pluginStartedBefore time.Time) ([]*models.EvaluationRun, error)
 	Advance(id primitive.ObjectID, fromIndex int, pluginError string) error
@@ -29,8 +32,21 @@ type evaluationRunRepository struct {
 	collection *mongo.Collection
 }
 
-func NewEvaluationRunRepository() EvaluationRunRepository {
-	return &evaluationRunRepository{collection: database.GetCollection("evaluation_runs")}
+func NewEvaluationRunRepository() (EvaluationRunRepository, error) {
+	r := &evaluationRunRepository{collection: database.GetCollection("evaluation_runs")}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	_, err := r.collection.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "job_id", Value: 1},
+			{Key: "created_at", Value: -1},
+		},
+		Options: options.Index().SetName("evaluation_run_job"),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 func (r *evaluationRunRepository) Create(run *models.EvaluationRun) error {
@@ -63,6 +79,36 @@ func (r *evaluationRunRepository) FindById(id string) (*models.EvaluationRun, er
 		return nil, err
 	}
 	return &run, nil
+}
+
+func (r *evaluationRunRepository) FindByJob(jobId string) ([]*models.EvaluationRun, error) {
+	objectID, err := primitive.ObjectIDFromHex(jobId)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	cursor, err := r.collection.Find(ctx, bson.M{"job_id": objectID},
+		options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}}))
+	if err != nil {
+		return nil, err
+	}
+	runs := []*models.EvaluationRun{}
+	if err := cursor.All(ctx, &runs); err != nil {
+		return nil, err
+	}
+	return runs, nil
+}
+
+func (r *evaluationRunRepository) DeleteByJobId(jobId string) error {
+	objectID, err := primitive.ObjectIDFromHex(jobId)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	_, err = r.collection.DeleteMany(ctx, bson.M{"job_id": objectID})
+	return err
 }
 
 // Finish only transitions ongoing runs. A repeated callback cannot reopen history.

@@ -30,6 +30,7 @@ type Conductor interface {
 	OrchestrateJob(job *models.Job) error
 	RunJob(job *models.Job) error
 	RunMutation(mutation *models.Mutation) error
+	RerunEvaluation(job *models.Job, mutation *models.Mutation, plugins []string) (*models.EvaluationRun, error)
 	sendJobStatusNotificationEmail(userID string, jobID string, jobName string, jobState enum.JobState, stageID int, stageName string)
 }
 
@@ -135,6 +136,9 @@ func (con *conductor) RunMutation(mutation *models.Mutation) error {
 	if err := con.jobRepository.Update(job.Id.Hex(), job); err != nil {
 		logger.Errorf("Conductor: RunMutation: Failed to update job %s: %v", job.Id.Hex(), err)
 		return err
+	}
+	if err := con.jobRepository.ClearLatestEvaluation(job.Id.Hex()); err != nil {
+		logger.Errorf("Conductor: RunMutation: Failed to clear the latest evaluation of job %s: %v", job.Id.Hex(), err)
 	}
 	reqBodyMap := PipelineRequest{
 		JobId:      mutation.JobId.Hex(),
@@ -528,6 +532,9 @@ func (con *conductor) updateMutationData(data Data) enum.JobState {
 	if err := con.jobRepository.Update(data.JobID, job); err != nil {
 		logger.Errorf("Conductor: updateMutationData: Failed to update job %s : %v", data.JobID, err)
 		return ""
+	}
+	if state == enum.JobStatePending {
+		con.markEvaluationPending(data.JobID)
 	}
 	if evaluate {
 		if err := con.beginEvaluation(job, mutation, stored); err != nil {

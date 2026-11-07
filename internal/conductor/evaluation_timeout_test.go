@@ -27,6 +27,7 @@ func TestSweepStaleEvaluations(t *testing.T) {
 		require.Contains(tt, f.runs.run.Error, "timed out: no result from evaluation.mock")
 		require.Equal(tt, enum.JobStateCompleted, f.job.State)
 		require.Zero(tt, f.results.writes)
+		require.Equal(tt, []latestEvaluation{{"finish", f.runs.run.Id, models.EvaluationFailed}}, f.latest)
 	})
 
 	t.Run("recent run is left alone", func(tt *testing.T) {

@@ -15,6 +15,8 @@ import (
 
 type EvaluationResultRepository interface {
 	UpsertAll(results []*models.EvaluationResult) error
+	FindByRun(runId string) ([]*models.EvaluationResult, error)
+	DeleteByRunIds(runIds []primitive.ObjectID) error
 }
 
 type evaluationResultRepository struct {
@@ -64,5 +66,33 @@ func (r *evaluationResultRepository) UpsertAll(results []*models.EvaluationResul
 	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
 	defer cancel()
 	_, err := r.collection.BulkWrite(ctx, writes)
+	return err
+}
+
+func (r *evaluationResultRepository) FindByRun(runId string) ([]*models.EvaluationResult, error) {
+	objectID, err := primitive.ObjectIDFromHex(runId)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	cursor, err := r.collection.Find(ctx, bson.M{"evaluation_run_id": objectID})
+	if err != nil {
+		return nil, err
+	}
+	results := []*models.EvaluationResult{}
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (r *evaluationResultRepository) DeleteByRunIds(runIds []primitive.ObjectID) error {
+	if len(runIds) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+	_, err := r.collection.DeleteMany(ctx, bson.M{"evaluation_run_id": bson.M{"$in": runIds}})
 	return err
 }

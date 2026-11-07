@@ -98,6 +98,8 @@ type Job struct {
 	InputProtein      string                  `bson:"input_protein" json:"input_protein" validate:"required"`
 	RunType           string                  `bson:"run_type" json:"run_type" validate:"required"`
 	EvaluationPlugins []string                `bson:"evaluation_plugins,omitempty" json:"evaluation_plugins,omitempty" validate:"omitempty,dive,required"`
+	EvaluationState   EvaluationState         `bson:"evaluation_state,omitempty" json:"evaluation_state,omitempty"`
+	EvaluationRunId   *primitive.ObjectID     `bson:"evaluation_run_id,omitempty" json:"evaluation_run_id,omitempty"`
 	Description       string                  `bson:"description" json:"description"`
 	IsNotificationOn  bool                    `bson:"is_notification_on" json:"is_notification_on"`
 	CreatedAt         time.Time               `bson:"created_at" json:"created_at"`

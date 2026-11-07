@@ -25,7 +25,7 @@ import (
 // with the mock evaluation plugin selected.
 func newMutationFlowFixture() (*models.Job, *models.Mutation) {
 	jobID, mutationID := primitive.NewObjectID(), primitive.NewObjectID()
-	job := &models.Job{Id: jobID, Name: "BLX01 phase 4 smoke", UserId: "blx01-smoke", StageId: 3,
+	job := &models.Job{Id: jobID, Name: "BLX01 mutation flow smoke", UserId: "blx01-smoke", StageId: 3,
 		State: enum.JobStateOnGoing, InputProtein: "ACDEFGHIK", RunType: "auto",
 		EvaluationPlugins: []string{"mock"}, Meta: []string{"blast", "unirep", "ridgecv", "mutation"},
 		Options: map[string]interface{}{"mutation": map[string]interface{}{}},
@@ -90,7 +90,10 @@ func runMutationFlowSmoke(mongoURI, amqpURL string) error {
 	if err := channel.ExchangeDeclare("logs_topic", "topic", false, false, false, false, nil); err != nil {
 		return err
 	}
-	runs := repositories.NewEvaluationRunRepository()
+	runs, err := repositories.NewEvaluationRunRepository()
+	if err != nil {
+		return err
+	}
 	results, err := repositories.NewEvaluationResultRepository()
 	if err != nil {
 		return err

@@ -115,4 +115,61 @@ func TestValidateJob(t *testing.T) {
 		err := job.Validate(false)
 		assert.NotNil(t, err)
 	})
+
+	t.Run("no evaluation plugins keeps a job valid", func(t *testing.T) {
+		job := Job{
+			Name:         "test",
+			UserId:       "test",
+			Options:      map[string]interface{}{"a": 1},
+			InputProtein: "test",
+			RunType:      "auto",
+		}
+		err := job.Validate(false)
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid empty evaluation plugin name", func(t *testing.T) {
+		job := Job{
+			Name:              "test",
+			UserId:            "test",
+			Options:           map[string]interface{}{"a": 1},
+			InputProtein:      "test",
+			RunType:           "auto",
+			EvaluationPlugins: []string{""},
+		}
+		err := job.Validate(false)
+		assert.NotNil(t, err)
+	})
+}
+
+func TestValidateLabResultSources(t *testing.T) {
+	base := LabResult{Total: 2, Sequences: []string{"AAA", "CCC"}, Scores: []float32{1, 2}}
+
+	t.Run("valid sources", func(t *testing.T) {
+		lr := base
+		lr.Sources = []string{SourceUpload, SourceLibrary}
+		assert.Nil(t, lr.Validate())
+	})
+
+	t.Run("sources are optional", func(t *testing.T) {
+		assert.Nil(t, base.Validate())
+	})
+
+	t.Run("sources length mismatch", func(t *testing.T) {
+		lr := base
+		lr.Sources = []string{SourceUpload}
+		assert.NotNil(t, lr.Validate())
+	})
+
+	t.Run("unknown source", func(t *testing.T) {
+		lr := base
+		lr.Sources = []string{SourceUpload, "other"}
+		assert.NotNil(t, lr.Validate())
+	})
+
+	t.Run("duplicate sequences ignore case", func(t *testing.T) {
+		lr := LabResult{Total: 3, Sequences: []string{"aaa", "CCC", "AAA"}, Scores: []float32{1, 2, 3}}
+		assert.Equal(t, []string{"AAA"}, lr.RepeatedSequences())
+		assert.NotNil(t, lr.Validate())
+	})
 }

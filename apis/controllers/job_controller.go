@@ -2,6 +2,9 @@ package controllers
 
 import (
 	"fmt"
+	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -19,11 +22,14 @@ type JobController struct {
 	configurationRepository      repositories.ConfigurationRepository
 	queryResultRepository        repositories.QueryResultRepository
 	experimentalResultRepository repositories.ExperimentalResultRepository
+	assayTypeRepository          repositories.AssayTypeRepository
+	evaluationRunRepository      repositories.EvaluationRunRepository
+	evaluationResultRepository   repositories.EvaluationResultRepository
 	conductor                    conductor.Conductor
 }
 
-func NewJobController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, mutationResultRepository repositories.MutationResultRepository, configurationRepository repositories.ConfigurationRepository, queryResultRepository repositories.QueryResultRepository, experimentalResultRepository repositories.ExperimentalResultRepository, conductor conductor.Conductor) *JobController {
-	return &JobController{jobRepository: jobRepository, mutationRepository: mutationRepository, mutationResultRepository: mutationResultRepository, configurationRepository: configurationRepository, queryResultRepository: queryResultRepository, experimentalResultRepository: experimentalResultRepository, conductor: conductor}
+func NewJobController(jobRepository repositories.JobRepository, mutationRepository repositories.MutationRepository, mutationResultRepository repositories.MutationResultRepository, configurationRepository repositories.ConfigurationRepository, queryResultRepository repositories.QueryResultRepository, experimentalResultRepository repositories.ExperimentalResultRepository, assayTypeRepository repositories.AssayTypeRepository, evaluationRunRepository repositories.EvaluationRunRepository, evaluationResultRepository repositories.EvaluationResultRepository, conductor conductor.Conductor) *JobController {
+	return &JobController{jobRepository: jobRepository, mutationRepository: mutationRepository, mutationResultRepository: mutationResultRepository, configurationRepository: configurationRepository, queryResultRepository: queryResultRepository, experimentalResultRepository: experimentalResultRepository, assayTypeRepository: assayTypeRepository, evaluationRunRepository: evaluationRunRepository, evaluationResultRepository: evaluationResultRepository, conductor: conductor}
 }
 
 // GetAllJobs retrieves all jobs
@@ -60,6 +66,11 @@ func (jc *JobController) GetAllJobs(c *gin.Context) {
 	if err != nil {
 		apiutil.ApiResponseInternalServerError(c, err)
 		return
+	}
+
+	names := map[primitive.ObjectID]string{}
+	for _, job := range jobs {
+		jc.fillAssayTypeName(job, names)
 	}
 
 	apiutil.ApiResponseOk(c, jobs)
@@ -128,6 +139,8 @@ func (jc *JobController) GetJob(c *gin.Context) {
 		return
 	}
 
+	jc.fillAssayTypeName(job, map[primitive.ObjectID]string{})
+
 	apiutil.ApiResponseOk(c, job)
 }
 
@@ -151,9 +164,24 @@ func (jc *JobController) CreateJob(c *gin.Context) {
 		return
 	}
 
+	if err := validateSequences(job.InputProtein, job.LabResult); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid sequence")
+		return
+	}
+
 	err = validateJobOptions(&job)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
+		return
+	}
+
+	if status, err := jc.checkAssay(&job, job.UserId, job.LabResult.Total > 0); err != nil {
+		respondAssayError(c, status, err)
+		return
+	}
+
+	if err := validateEvaluationPlugins(job.EvaluationPlugins); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid evaluation plugins")
 		return
 	}
 
@@ -208,9 +236,23 @@ func (jc *JobController) UpdateJob(c *gin.Context) {
 		apiutil.ApiResponseNotFound(c, err)
 		return
 	}
+	ownerId := job.UserId
+	oldAssayTypeId := job.AssayTypeId
+	oldSequences := append([]string{}, job.LabResult.Sequences...)
 	err = c.BindJSON(&job)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid request body")
+		return
+	}
+
+	if err := validateSequences(job.InputProtein, job.LabResult); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid sequence")
+		return
+	}
+
+	labChanged := !slices.Equal(oldSequences, job.LabResult.Sequences)
+	if status, err := jc.checkAssay(job, ownerId, labChanged); err != nil {
+		respondAssayError(c, status, err)
 		return
 	}
 
@@ -219,6 +261,15 @@ func (jc *JobController) UpdateJob(c *gin.Context) {
 		apiutil.ApiResponseInternalServerError(c, err)
 		return
 	}
+
+	if job.AssayTypeId != oldAssayTypeId {
+		if err := jc.moveResultsToAssayType(job); err != nil {
+			apiutil.ApiResponseInternalServerError(c, err)
+			return
+		}
+	}
+
+	jc.fillAssayTypeName(job, map[primitive.ObjectID]string{})
 
 	apiutil.ApiResponseOk(c, job)
 }
@@ -257,6 +308,24 @@ func (jc *JobController) DeleteJob(c *gin.Context) {
 		return
 	}
 
+	runs, err := jc.evaluationRunRepository.FindByJob(id)
+	if err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+	runIds := make([]primitive.ObjectID, 0, len(runs))
+	for _, run := range runs {
+		runIds = append(runIds, run.Id)
+	}
+	if err := jc.evaluationResultRepository.DeleteByRunIds(runIds); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+	if err := jc.evaluationRunRepository.DeleteByJobId(id); err != nil {
+		apiutil.ApiResponseInternalServerError(c, err)
+		return
+	}
+
 	apiutil.ApiResponseOk(c, nil)
 }
 
@@ -291,6 +360,112 @@ func (jc *JobController) RunJob(c *gin.Context) {
 	apiutil.ApiResponseOk(c, nil, "job running")
 }
 
+func respondAssayError(c *gin.Context, status int, err error) {
+	switch status {
+	case http.StatusForbidden:
+		apiutil.ApiResponseForbidden(c, err)
+	case http.StatusNotFound:
+		apiutil.ApiResponseNotFound(c, err)
+	case http.StatusInternalServerError:
+		apiutil.ApiResponseInternalServerError(c, err)
+	default:
+		apiutil.ApiResponseErrorBadRequest(c, err, err.Error())
+	}
+}
+
+func (jc *JobController) fillAssayTypeName(job *models.Job, names map[primitive.ObjectID]string) {
+	if job.AssayTypeId == primitive.NilObjectID {
+		return
+	}
+	if name, ok := names[job.AssayTypeId]; ok {
+		job.AssayTypeName = name
+		return
+	}
+	if assayType, err := jc.assayTypeRepository.FindById(job.AssayTypeId.Hex()); err == nil {
+		names[job.AssayTypeId] = assayType.Name
+		job.AssayTypeName = assayType.Name
+	}
+}
+
+func (jc *JobController) checkAssay(job *models.Job, ownerId string, checkLabResult bool) (int, error) {
+	if job.AssayTypeId != primitive.NilObjectID {
+		assayType, err := jc.assayTypeRepository.FindById(job.AssayTypeId.Hex())
+		if err != nil {
+			return http.StatusNotFound, fmt.Errorf("error: assay type not found")
+		}
+		if assayType.UserId != ownerId {
+			return http.StatusForbidden, fmt.Errorf("error: assay type does not belong to user")
+		}
+	}
+
+	if checkLabResult || len(job.LabResult.Sources) > 0 {
+		if err := job.LabResult.Validate(); err != nil {
+			return http.StatusBadRequest, err
+		}
+	}
+
+	libraryRows := map[string]float32{}
+	if len(job.LibraryResultIds) > 0 {
+		if job.AssayTypeId == primitive.NilObjectID {
+			return http.StatusBadRequest, fmt.Errorf("error: library results need an assay type")
+		}
+		results, err := jc.experimentalResultRepository.GetByIds(objectIdsToHex(job.LibraryResultIds))
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+		if len(results) != len(job.LibraryResultIds) {
+			return http.StatusNotFound, fmt.Errorf("error: library result not found")
+		}
+		for _, result := range results {
+			if result.UserId != ownerId {
+				return http.StatusForbidden, fmt.Errorf("error: library result does not belong to user")
+			}
+			if result.AssayTypeId != job.AssayTypeId {
+				return http.StatusBadRequest, fmt.Errorf("error: library result has a different assay type")
+			}
+			libraryRows[strings.ToUpper(result.ProteinSequence)] = result.ActualAssayScore
+		}
+	}
+
+	for i, source := range job.LabResult.Sources {
+		if source != models.SourceLibrary || i >= len(job.LabResult.Sequences) || i >= len(job.LabResult.Scores) {
+			continue
+		}
+		score, ok := libraryRows[strings.ToUpper(job.LabResult.Sequences[i])]
+		if !ok || score != job.LabResult.Scores[i] {
+			return http.StatusBadRequest, fmt.Errorf("error: library row %d does not match library_result_ids", i)
+		}
+	}
+
+	return http.StatusOK, nil
+}
+
+func (jc *JobController) moveResultsToAssayType(job *models.Job) error {
+	jobId := job.Id.Hex()
+	if err := jc.experimentalResultRepository.UpdateAssayTypeByJobId(jobId, job.AssayTypeId); err != nil {
+		return err
+	}
+
+	results, err := jc.experimentalResultRepository.GetAll(map[string]interface{}{"job_id": jobId})
+	if err != nil {
+		return err
+	}
+	for _, result := range results {
+		if result.ProteinSequence != "" {
+			continue
+		}
+		mutationResult, err := jc.mutationResultRepository.FindById(result.MutationResultId.Hex())
+		if err != nil {
+			continue
+		}
+		result.ProteinSequence = mutationResult.ProteinSequence
+		if err := jc.experimentalResultRepository.Upsert(result.MutationResultId.Hex(), result); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func validateJobOptions(job *models.Job) error {
 	for _, service := range job.Meta {
 		if _, ok := job.Options[service]; !ok {
@@ -323,9 +498,19 @@ func (jc *JobController) CreateConfigurations(c *gin.Context) {
 		return
 	}
 
+	if err := validateSequences(configuration.InputProtein, configuration.LabResult); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid sequence")
+		return
+	}
+
 	err = validateConfigurationOptions(&configuration)
 	if err != nil {
 		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid options")
+		return
+	}
+
+	if err := validateEvaluationPlugins(configuration.EvaluationPlugins); err != nil {
+		apiutil.ApiResponseErrorBadRequest(c, err, "error: invalid evaluation plugins")
 		return
 	}
 

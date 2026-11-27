@@ -9,6 +9,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	models "github.com/protengplus/proteng-conductor/models"
+	primitive "go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // MockExperimentalResultRepository is a mock of ExperimentalResultRepository interface.
@@ -32,6 +33,21 @@ func NewMockExperimentalResultRepository(ctrl *gomock.Controller) *MockExperimen
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockExperimentalResultRepository) EXPECT() *MockExperimentalResultRepositoryMockRecorder {
 	return m.recorder
+}
+
+// CountByAssayType mocks base method.
+func (m *MockExperimentalResultRepository) CountByAssayType(assayTypeId string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountByAssayType", assayTypeId)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountByAssayType indicates an expected call of CountByAssayType.
+func (mr *MockExperimentalResultRepositoryMockRecorder) CountByAssayType(assayTypeId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByAssayType", reflect.TypeOf((*MockExperimentalResultRepository)(nil).CountByAssayType), assayTypeId)
 }
 
 // DeleteByJobId mocks base method.
@@ -104,6 +120,35 @@ func (m *MockExperimentalResultRepository) GetAll(query map[string]interface{}) 
 func (mr *MockExperimentalResultRepositoryMockRecorder) GetAll(query interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockExperimentalResultRepository)(nil).GetAll), query)
+}
+
+// GetByIds mocks base method.
+func (m *MockExperimentalResultRepository) GetByIds(ids []string) ([]*models.ExperimentalResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByIds", ids)
+	ret0, _ := ret[0].([]*models.ExperimentalResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByIds indicates an expected call of GetByIds.
+func (mr *MockExperimentalResultRepositoryMockRecorder) GetByIds(ids interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIds", reflect.TypeOf((*MockExperimentalResultRepository)(nil).GetByIds), ids)
+}
+
+// UpdateAssayTypeByJobId mocks base method.
+func (m *MockExperimentalResultRepository) UpdateAssayTypeByJobId(jobId string, assayTypeId primitive.ObjectID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAssayTypeByJobId", jobId, assayTypeId)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateAssayTypeByJobId indicates an expected call of UpdateAssayTypeByJobId.
+func (mr *MockExperimentalResultRepositoryMockRecorder) UpdateAssayTypeByJobId(jobId, assayTypeId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAssayTypeByJobId", reflect.TypeOf((*MockExperimentalResultRepository)(nil).UpdateAssayTypeByJobId), jobId, assayTypeId)
 }
 
 // Upsert mocks base method.

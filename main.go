@@ -49,10 +49,20 @@ func main() {
 	mutationResultRepository := repositories.NewMutationResultRepository()
 	configurationRepository := repositories.NewConfigurationRepository()
 	experimentalResultRepository := repositories.NewExperimentalResultRepository()
+	assayTypeRepository := repositories.NewAssayTypeRepository()
 
 	// conductor
+	evaluationRunRepository, err := repositories.NewEvaluationRunRepository()
+	if err != nil {
+		logger.Fatalf("Failed to initialize Evaluation run repository: %v", err)
+	}
+	evaluationResultRepository, err := repositories.NewEvaluationResultRepository()
+	if err != nil {
+		logger.Fatalf("Failed to initialize Evaluation result repository: %v", err)
+	}
 	rabbitPublisher := rmqPublisher.NewPublisher()
-	conductor := conductor.NewConductor(jobRepository, mutationRepository, queryResultRepository, mutationResultRepository, rabbitPublisher)
+	conductor := conductor.NewConductor(jobRepository, mutationRepository, queryResultRepository, mutationResultRepository, rabbitPublisher,
+		conductor.WithEvaluationRepositories(evaluationRunRepository, evaluationResultRepository))
 	rabbitConsumer := rmqConsumer.NewConsumer(conductor)
 
 	amqpURL := config.Config.RabbitMqUrl
@@ -63,6 +73,13 @@ func main() {
 		if err != nil {
 			logger.Fatalf("Error in RabbitMQ Consumer: %v", err)
 		}
+	}()
+
+	// fail evaluation runs that never got a result, so their jobs do not stay ongoing
+	sweeperDone := make(chan struct{})
+	go func() {
+		defer close(sweeperDone)
+		conductor.RunEvaluationSweeper(ctx)
 	}()
 
 	// storage service
@@ -81,9 +98,11 @@ func main() {
 	})
 
 	// routes
-	routes.JobRoute(router, jobRepository, mutationRepository, mutationResultRepository, configurationRepository, queryResultRepository, experimentalResultRepository, conductor)
+	routes.JobRoute(router, jobRepository, mutationRepository, mutationResultRepository, configurationRepository, queryResultRepository, experimentalResultRepository, assayTypeRepository, evaluationRunRepository, evaluationResultRepository, conductor)
 	routes.MutationRoute(router, jobRepository, mutationRepository, mutationResultRepository, experimentalResultRepository, conductor)
-	routes.ExperimentalResultRoute(router, mutationResultRepository, experimentalResultRepository)
+	routes.ExperimentalResultRoute(router, mutationResultRepository, experimentalResultRepository, jobRepository, assayTypeRepository)
+	routes.AssayTypeRoute(router, assayTypeRepository, experimentalResultRepository, mutationResultRepository, jobRepository)
+	routes.EvaluationRoute(router, jobRepository, mutationRepository, mutationResultRepository, evaluationRunRepository, evaluationResultRepository, conductor)
 	routes.ArtifactRoute(router, storageService)
 	routes.UniProtRoute(router, storageService)
 	routes.QueryResultRoute(router, jobRepository, queryResultRepository, conductor)
@@ -116,6 +135,11 @@ func main() {
 	case <-consumerDone:
 	case <-shutdownCtx.Done():
 		logger.Errorf("Consumer did not stop before shutdown timeout")
+	}
+	select {
+	case <-sweeperDone:
+	case <-shutdownCtx.Done():
+		logger.Errorf("Evaluation sweeper did not stop before shutdown timeout")
 	}
 
 	if err := database.Client.Disconnect(shutdownCtx); err != nil {

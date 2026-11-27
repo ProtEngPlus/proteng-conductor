@@ -9,6 +9,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	models "github.com/protengplus/proteng-conductor/models"
+	primitive "go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // MockMutationResultRepository is a mock of MutationResultRepository interface.
@@ -118,6 +119,21 @@ func (m *MockMutationResultRepository) FindById(id string) (*models.MutationResu
 func (mr *MockMutationResultRepositoryMockRecorder) FindById(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindById", reflect.TypeOf((*MockMutationResultRepository)(nil).FindById), id)
+}
+
+// FindByIds mocks base method.
+func (m *MockMutationResultRepository) FindByIds(ids []primitive.ObjectID) ([]*models.MutationResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByIds", ids)
+	ret0, _ := ret[0].([]*models.MutationResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByIds indicates an expected call of FindByIds.
+func (mr *MockMutationResultRepositoryMockRecorder) FindByIds(ids interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByIds", reflect.TypeOf((*MockMutationResultRepository)(nil).FindByIds), ids)
 }
 
 // GetAll mocks base method.

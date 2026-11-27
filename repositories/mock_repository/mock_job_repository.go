@@ -9,6 +9,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	models "github.com/protengplus/proteng-conductor/models"
+	primitive "go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // MockJobRepository is a mock of JobRepository interface.
@@ -46,6 +47,35 @@ func (m *MockJobRepository) AddErrorLog(id, log string) error {
 func (mr *MockJobRepositoryMockRecorder) AddErrorLog(id, log interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddErrorLog", reflect.TypeOf((*MockJobRepository)(nil).AddErrorLog), id, log)
+}
+
+// ClearLatestEvaluation mocks base method.
+func (m *MockJobRepository) ClearLatestEvaluation(id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearLatestEvaluation", id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ClearLatestEvaluation indicates an expected call of ClearLatestEvaluation.
+func (mr *MockJobRepositoryMockRecorder) ClearLatestEvaluation(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearLatestEvaluation", reflect.TypeOf((*MockJobRepository)(nil).ClearLatestEvaluation), id)
+}
+
+// CountByAssayType mocks base method.
+func (m *MockJobRepository) CountByAssayType(assayTypeId string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountByAssayType", assayTypeId)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountByAssayType indicates an expected call of CountByAssayType.
+func (mr *MockJobRepositoryMockRecorder) CountByAssayType(assayTypeId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByAssayType", reflect.TypeOf((*MockJobRepository)(nil).CountByAssayType), assayTypeId)
 }
 
 // Create mocks base method.
@@ -106,6 +136,20 @@ func (mr *MockJobRepositoryMockRecorder) FindRecent(userID interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindRecent", reflect.TypeOf((*MockJobRepository)(nil).FindRecent), userID)
 }
 
+// FinishLatestEvaluation mocks base method.
+func (m *MockJobRepository) FinishLatestEvaluation(id string, runId primitive.ObjectID, state models.EvaluationState) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FinishLatestEvaluation", id, runId, state)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FinishLatestEvaluation indicates an expected call of FinishLatestEvaluation.
+func (mr *MockJobRepositoryMockRecorder) FinishLatestEvaluation(id, runId, state interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinishLatestEvaluation", reflect.TypeOf((*MockJobRepository)(nil).FinishLatestEvaluation), id, runId, state)
+}
+
 // GetAll mocks base method.
 func (m *MockJobRepository) GetAll(query map[string]interface{}) ([]*models.Job, error) {
 	m.ctrl.T.Helper()
@@ -119,6 +163,20 @@ func (m *MockJobRepository) GetAll(query map[string]interface{}) ([]*models.Job,
 func (mr *MockJobRepositoryMockRecorder) GetAll(query interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockJobRepository)(nil).GetAll), query)
+}
+
+// SetLatestEvaluation mocks base method.
+func (m *MockJobRepository) SetLatestEvaluation(id string, runId primitive.ObjectID, state models.EvaluationState) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetLatestEvaluation", id, runId, state)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetLatestEvaluation indicates an expected call of SetLatestEvaluation.
+func (mr *MockJobRepositoryMockRecorder) SetLatestEvaluation(id, runId, state interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLatestEvaluation", reflect.TypeOf((*MockJobRepository)(nil).SetLatestEvaluation), id, runId, state)
 }
 
 // Update mocks base method.

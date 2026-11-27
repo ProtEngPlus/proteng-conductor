@@ -17,6 +17,7 @@ import (
 type MutationResultRepository interface {
 	Create(mutationResult *models.MutationResult) error
 	FindById(id string) (*models.MutationResult, error)
+	FindByIds(ids []primitive.ObjectID) ([]*models.MutationResult, error)
 	FindBestResult(userId string) (*models.BestAssayScore, error)
 	Update(id string, mutationResult *models.MutationResult) error
 	Delete(id string) error
@@ -133,6 +134,28 @@ func (mrr *mutationResultRepository) FindById(id string) (*models.MutationResult
 	}
 
 	return &mutationResult, nil
+}
+
+func (mrr *mutationResultRepository) FindByIds(ids []primitive.ObjectID) ([]*models.MutationResult, error) {
+	mutationResults := []*models.MutationResult{}
+	if len(ids) == 0 {
+		return mutationResults, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), database.QueryTimeout)
+	defer cancel()
+
+	cursor, err := mrr.collection.Find(ctx, bson.M{"_id": bson.M{"$in": ids}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	if err := cursor.All(ctx, &mutationResults); err != nil {
+		return nil, err
+	}
+
+	return mutationResults, nil
 }
 
 func (mrr *mutationResultRepository) FindBestResult(userId string) (*models.BestAssayScore, error) {
